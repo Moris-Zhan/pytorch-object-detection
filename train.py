@@ -28,13 +28,15 @@ from tqdm import tqdm
 import statistics
 from utils.saver import Saver
 from utils.pytorchtools import EarlyStopping
+from torchsummary import summary
+
 
 
 if __name__ == "__main__":  
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
     parser.add_argument('--dataset', default='AsiaTrafficDataset', type=str, help='training dataset, CoCo5K, CoCo, Container, VOCDataset, AsiaTrafficDataset')
-    parser.add_argument("--model", type=str, default="Yolo_v4", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4")
+    parser.add_argument("--model", type=str, default="Yolo_v1", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4")
     parser.add_argument("--batch_size", type=int, default=1, help="size of each image batch")
     parser.add_argument("--gradient_accumulations", type=int, default=2, help="number of gradient accums before step")
     parser.add_argument("--pretrained_weights", type=str, help="if specified starts from checkpoint model")
@@ -123,6 +125,7 @@ if __name__ == "__main__":
         # outputs_2_shape torch.Size([1, 3 * (80 + 5), 13, 13])    
 
     opt.checkname = opt.model
+    summary(net.cuda(), (3, 416, 416))
     print("device : ", device)
     if device.type == 'cpu':
         model = torch.nn.DataParallel(net)
