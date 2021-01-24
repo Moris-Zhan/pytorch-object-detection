@@ -146,9 +146,9 @@ python predict.py --model Yolo_v4  --experiment_dir "run\AsiaTrafficDataset\Yolo
 ```
 
 ## Reference
-PyTorch-YOLOv1 : https://github.com/ssaru/You_Only_Look_Once/blob/master/yolov1.py
-PyTorch-YOLOv2 : https://github.com/uvipen/Yolo-v2-pytorch/blob/9589413b5dce0476eb9cccc41945cf30cf131b34/src/yolo_net.py
-tensorflow-yolov3 : https://github.com/Leyan529/tensorflow-yolov3
-PyTorch-YOLOv3 : https://github.com/eavise-kul/lightnet/blob/b54f771a597d23863979d9274eb2ba90c05938e4/lightnet/models/_network_yolo_v3.py
-PyTorch_YOLOv4 : https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/4ccef0ec8fe984e059378813e33b3740929e0c19/models.py
-SSD: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/model.py#L323
+- PyTorch-YOLOv1 : https://github.com/ssaru/You_Only_Look_Once/blob/master/yolov1.py
+- PyTorch-YOLOv2 : https://github.com/uvipen/Yolo-v2-pytorch/blob/9589413b5dce0476eb9cccc41945cf30cf131b34/src/yolo_net.py
+- tensorflow-yolov3 : https://github.com/Leyan529/tensorflow-yolov3
+- PyTorch-YOLOv3 : https://github.com/eavise-kul/lightnet/blob/b54f771a597d23863979d9274eb2ba90c05938e4/lightnet/models/_network_yolo_v3.py
+- PyTorch_YOLOv4 : https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/4ccef0ec8fe984e059378813e33b3740929e0c19/models.py
+- SSD: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/model.py#L323
