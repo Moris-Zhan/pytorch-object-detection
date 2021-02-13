@@ -29,20 +29,22 @@ import statistics
 from utils.saver import Saver
 from utils.pytorchtools import EarlyStopping
 from torchsummary import summary
+from utils.func import get_dboxes
+
 
 
 
 if __name__ == "__main__":  
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--img_size", type=int, default=416, help="YOLO type(416), SSD(300), size of each image dimension")
     parser.add_argument('--dataset', default='AsiaTrafficDataset', type=str, help='training dataset, CoCo5K, CoCo, Container, VOCDataset, AsiaTrafficDataset')
-    parser.add_argument("--model", type=str, default="Yolo_v1", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4")
-    parser.add_argument("--batch_size", type=int, default=1, help="size of each image batch")
+    parser.add_argument("--model", type=str, default="SSD", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD")
+    parser.add_argument("--batch_size", type=int, default=2, help="size of each image batch")
     parser.add_argument("--gradient_accumulations", type=int, default=2, help="number of gradient accums before step")
     parser.add_argument("--pretrained_weights", type=str, help="if specified starts from checkpoint model")
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--n_gpu", type=int, default=1, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--img_size", type=int, default=416, help="size of each image dimension")
     parser.add_argument("--checkpoint_interval", type=int, default=1, help="interval between saving model weights")
     parser.add_argument("--evaluation_interval", type=int, default=1, help="interval evaluations on validation set")
     parser.add_argument("--compute_map", default=False, help="if True computes mAP every tenth batch")
@@ -72,15 +74,15 @@ if __name__ == "__main__":
     # 3. Selects new scale image size every tenth batch
     dataset = None
     if opt.dataset == "CoCo5K":
-        dataset = CoCo5KDataset(img_size=416)
+        dataset = CoCo5KDataset(img_size=opt.img_size)
     elif opt.dataset == "CoCo":
-        dataset = CoCoDataset(img_size=416)
+        dataset = CoCoDataset(img_size=opt.img_size)
     elif opt.dataset == "Container":
-        dataset = ContainerDataset(img_size=416)
+        dataset = ContainerDataset(img_size=opt.img_size)
     elif opt.dataset == "VOCDataset":
-        dataset = VOCDataset(img_size=416)
+        dataset = VOCDataset(img_size=opt.img_size)
     elif opt.dataset == "AsiaTrafficDataset":
-        dataset = AsiaTrafficDataset(img_size=416)
+        dataset = AsiaTrafficDataset(img_size=opt.img_size)
     opt.num_class = len(dataset.classes)
     print("num_class: ", opt.num_class)
     dataloader = torch.utils.data.DataLoader(
@@ -123,9 +125,14 @@ if __name__ == "__main__":
         # outputs_0_shape torch.Size([1, 3 * (80 + 5), 52, 52])
         # outputs_1_shape torch.Size([1, 3 * (80 + 5), 26, 26])
         # outputs_2_shape torch.Size([1, 3 * (80 + 5), 13, 13])    
+    elif opt.model == "SSD":
+        from model.ssd import ssd, SSDLoss
+        net = ssd(num_classes=opt.num_class)
+        criterion = SSDLoss
+        # outputs_shape torch.Size([1, 8732, (13 + 4)])
 
     opt.checkname = opt.model
-    summary(net.cuda(), (3, 416, 416))
+    # summary(net.cuda(), (3, 416, 416))
     print("device : ", device)
     if device.type == 'cpu':
         model = torch.nn.DataParallel(net)
@@ -152,6 +159,10 @@ if __name__ == "__main__":
     # initialize the early_stopping object
     early_stopping = EarlyStopping(saver, patience=3, verbose=True)
 
+    # default_boxes for SSD
+    default_boxes = get_dboxes()
+    default_boxes = default_boxes.to(device)
+
     loss = 0
     best_pred = 0.0
     print("Ready to Training...")
@@ -164,23 +175,27 @@ if __name__ == "__main__":
                 imgs = Variable(imgs.to(device))
                 targets = Variable(targets.to(device), requires_grad=False)  
                 
-                outputs = model(imgs)         # Forward pass       
-                if type(outputs) == list:      
-                    shape = outputs[0].shape
-                else:          
-                    shape = outputs.shape
+                outputs = model(imgs)         # Forward pass      
+                # Calc SSD Loss
+                if opt.model == "SSD":
+                    loss, localization_loss, classification_loss = criterion(outputs, targets, default_boxes)  
+                else:
+                    # Calc Yolo V1/V2/V3/V4 Loss            
+                    loss, \
+                    loss_box_reg, \
+                    loss_box_size, \
+                    loss_conf, \
+                    loss_classifier, \
+                    loss_objectness, \
+                    loss_noobjness = criterion(outputs, targets) 
 
-                # Calc Yolo V1/V2/V3/V4 Loss            
-                loss, \
-                loss_box_reg, \
-                loss_box_size, \
-                loss_conf, \
-                loss_classifier, \
-                loss_objectness, \
-                loss_noobjness = criterion(outputs, targets)  
+                if opt.model == "SSD":
+                    pbar.set_description("Model: {}, lr: {}, loss: {:.4f}, classification_loss: {:.4f}, localization_loss: {:.4f}".format(  
+                        opt.model, optimizer.param_groups[0]["lr"], loss.item(), classification_loss, localization_loss))
 
-                pbar.set_description("Model: {}, lr: {}, loss: {:.4f}, loss_classifier: {:.4f}, loss_box_reg: {:.4f}, loss_box_size: {:.4f}, loss_noobjness: {:.4f}, loss_objectness: {:.4f}".format(  
-                    opt.model, optimizer.param_groups[0]["lr"], loss.item(), loss_classifier, loss_box_reg, loss_box_size, loss_noobjness, loss_objectness))
+                else:
+                    pbar.set_description("Model: {}, lr: {}, loss: {:.4f}, loss_classifier: {:.4f}, loss_box_reg: {:.4f}, loss_box_size: {:.4f}, loss_noobjness: {:.4f}, loss_objectness: {:.4f}".format(  
+                        opt.model, optimizer.param_groups[0]["lr"], loss.item(), loss_classifier, loss_box_reg, loss_box_size, loss_noobjness, loss_objectness))
 
                 # Report Progress
                 if (((current_train_step) % 100) == 0) or (current_train_step % 10 == 0 and current_train_step < 100):

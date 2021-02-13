@@ -11,7 +11,10 @@ import numpy as np
 import torch
 
 from tqdm import tqdm
+import itertools
 
+# YOLO
+# ---------------------------------------------------------------------------------------------------------------------------------------------
 def bbox_iou(box1, box2, x1y1x2y2=True):
     """
     Returns the IoU of two bounding boxes
@@ -170,3 +173,106 @@ def compute_ap(recall, precision):
     # and sum (\Delta recall) * prec
     ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
     return ap
+
+# SSD
+# -----------------------------------------------------------------------------------------------------------------------------------------
+def get_dboxes(smin=0.07, smax=0.9, ars=[1, 2, (1/2.0), 3, (1/3.0)], fks=[38, 19, 10, 5, 3, 1], num_boxes=[3, 5, 5, 5, 3, 3]):
+    m = len(fks)
+    sks = [round(smin + (((smax-smin)/(m-1)) * (k-1)), 2) for k in range(1, m + 1)]
+
+    boxes = []
+    for k, feat_k in enumerate(fks):
+        for i, j in itertools.product(range(feat_k), range(feat_k)):
+
+            cx = (i + 0.5)/feat_k
+            cy = (j + 0.5)/feat_k
+
+            w = h = np.sqrt(sks[k] * sks[min(k+1, len(sks) - 1)])
+
+            boxes.append([cx, cy, w, h])
+
+            sk = sks[k]
+            for ar in ars[:num_boxes[k]]:
+                w = sk * np.sqrt(ar)
+                h = sk / np.sqrt(ar)
+                boxes.append([cx, cy, w, h])
+
+    boxes = torch.tensor(boxes).float()
+    return torch.clamp(boxes, max=1.0)
+
+def center_to_points(center_tens):
+
+    if center_tens.size(0) == 0:
+        return center_tens
+    
+    assert center_tens.dim() == 3 
+    assert center_tens.size(2) == 4 
+
+    lp = torch.clamp(center_tens[:,:,:2] - center_tens[:,:,2:]/2.0, min=0.0)
+    rp = torch.clamp(center_tens[:,:,:2] + center_tens[:,:,2:]/2.0, max=1.0)
+
+    points = torch.cat([lp, rp], 2)
+
+    return points
+
+def undo_offsets(default_boxes, predicted_offsets, use_variance=True):
+    
+    offset1_mult = default_boxes[:,2:]
+    offset2_mult = 1
+    if use_variance:
+        offset1_mult = offset1_mult * 0.1
+        offset2_mult = offset2_mult * 0.2
+
+    cx = (offset1_mult * predicted_offsets[:,:,:2]) + default_boxes[:,:2]
+    wh = torch.exp(predicted_offsets[:,:,:2] * offset2_mult) * default_boxes[:,:2]
+
+    return torch.cat([cx, wh], 2)
+
+def get_nonzero_classes(predicted_classes, norm=False):
+    
+    if norm:
+        pred_exp = torch.exp(predicted_classes)
+        predicted_classes = pred_exp/pred_exp.sum(dim=2, keepdim=True)
+
+    scores, classes = torch.max(predicted_classes, 2)
+
+    non_zero_pred_idxs = (classes != 0).nonzero()
+
+    if non_zero_pred_idxs.dim() > 1:
+        non_zero_pred_idxs = non_zero_pred_idxs.squeeze(1)
+    
+    return classes, non_zero_pred_idxs, scores
+
+# Takes in two tensors with boxes in point form and computes iou between them.
+def iou(tens1, tens2):
+
+    assert tens1.size() == tens2.size()
+
+    squeeze = False
+    if tens1.dim() == 2 and tens2.dim() == 2:
+        squeeze = True
+        tens1 = tens1.unsqueeze(0)
+        tens2 = tens2.unsqueeze(0)
+    
+    assert tens1.dim() == 3 
+    assert tens1.size(-1) == 4 and tens2.size(-1) == 4
+
+    maxs = torch.max(tens1[:,:,:2], tens2[:,:,:2])
+    mins = torch.min(tens1[:,:,2:], tens2[:,:,2:])
+
+    diff = torch.clamp(mins - maxs, min=0.0)
+
+    intersection = diff[:,:,0] * diff[:,:,1]
+
+    diff1 = torch.clamp(tens1[:,:,2:] - tens1[:,:,:2], min=0.0)
+    area1 = diff1[:,:,0] * diff1[:,:,1]
+
+    diff2 = torch.clamp(tens2[:,:,2:] - tens2[:,:,:2], min=0.0)
+    area2 = diff2[:,:,0] * diff2[:,:,1]
+
+    iou = intersection/(area1 + area2 - intersection)
+
+    if squeeze:
+        iou = iou.squeeze(0)
+    
+    return iou

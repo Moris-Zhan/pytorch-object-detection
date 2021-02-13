@@ -29,16 +29,14 @@ import pickle
 import copy
 from utils.mark import mark_pred, mark_target
 from utils.func import *
-from utils.suppression import non_max_suppression
+from utils.suppression import non_max_suppression_yolo, non_max_suppression_ssd
 
 from tqdm import tqdm
 from glob import glob
 colors = pickle.load(open("dataset//pallete", "rb")) 
 
 
-
-
-def evaluate(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
+def evaluate_yolo(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
     model.eval()
     # Get dataloader
     dataloader = torch.utils.data.DataLoader(
@@ -52,10 +50,8 @@ def evaluate(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, 
     orign_list = []
     for batch_i, (_, imgs, targets) in enumerate(tqdm(dataloader, desc="Detecting objects")):
         if targets.shape[0] == 0: continue
-        # # Extract labels
-        # labels += targets[:, 1].tolist()
-        # # Rescale target
-        # targets[:, 2:] = xywh2xyxy(targets[:, 2:])
+        # Extract labels
+        labels += targets[:, 1].tolist()
         # Rescale target
         targets[:, 2:] *= img_size
 
@@ -63,12 +59,12 @@ def evaluate(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, 
 
         with torch.no_grad():
             outputs = model(imgs)  
-            suppress_output = non_max_suppression(outputs, conf_thres=conf_thres, nms_thres=nms_thres)
+            suppress_output = non_max_suppression_yolo(outputs, conf_thres=conf_thres, nms_thres=nms_thres)
         
         for idx, img in enumerate(imgs):
             img = np.array(img.permute(1, 2, 0).cpu()*255, dtype=np.uint8) # Re multiply (cv2 mode)
             pred_img = copy.deepcopy(img)
-            suppress_o = suppress_output[idx]
+            suppress_o = suppress_output[idx] # [xmin, ymin, xmax, ymax, conf, cls]
             
             target_img = mark_target(img, targets, dataset, idx)
             pred_img = mark_pred(pred_img, suppress_o, dataset)
@@ -78,7 +74,7 @@ def evaluate(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, 
             cv2.imwrite(save_image_path + 'val{}_jpg.png'.format(idx + batch_i), vis)
 
         sample_metrics += get_batch_statistics(suppress_output, targets.cuda(), iou_threshold=iou_thres)
-        # if batch_i > 10: break
+        if batch_i > 10: break
 
     # Concatenate sample statistics
     true_positives, pred_scores, pred_labels = [np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
@@ -86,11 +82,63 @@ def evaluate(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, 
 
     return precision, recall, AP, f1, ap_class
 
+def evaluate_ssd(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
+    model.eval()
+
+    # default_boxes for SSD
+    default_boxes = get_dboxes()
+    default_boxes = default_boxes.cuda()
+
+    # Get dataloader
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=False, num_workers=1, collate_fn=dataset.collate_fn
+    )
+
+    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+
+    labels = []
+    sample_metrics = []  # List of tuples (TP, confs, pred)
+    orign_list = []
+    for batch_i, (_, imgs, targets) in enumerate(tqdm(dataloader, desc="Detecting objects")):
+        if targets.shape[0] == 0: continue
+        # Extract labels
+        labels += targets[:, 1].tolist()
+        # Rescale target
+        targets[:, 2:] *= img_size
+
+        imgs = Variable(imgs.type(Tensor), requires_grad=False)
+
+        with torch.no_grad():
+            outputs = model(imgs)  
+            suppress_output = non_max_suppression_ssd(outputs, default_boxes) 
+            suppress_output = suppress_output.cuda()
+        
+        for idx, img in enumerate(imgs):
+            img = np.array(img.permute(1, 2, 0).cpu()*255, dtype=np.uint8) # Re multiply (cv2 mode)
+            pred_img = copy.deepcopy(img)
+            suppress_o = suppress_output[idx] # [xmin, ymin, xmax, ymax, 0, class_score, class_pred] # [66, 7]
+            
+            target_img = mark_target(img, targets, dataset, idx)
+            pred_img = mark_pred(pred_img, suppress_o, dataset)
+            vis = np.concatenate((target_img, pred_img), axis=1)
+            # cv2.imshow('win', vis)
+            # cv2.waitKey()
+            cv2.imwrite(save_image_path + 'val{}_jpg.png'.format(idx + batch_i), vis)
+
+        sample_metrics += get_batch_statistics(suppress_output, targets.cuda(), iou_threshold=iou_thres)
+        if batch_i > 10: break
+
+    # Concatenate sample statistics
+    true_positives, pred_scores, pred_labels = [np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
+    precision, recall, AP, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
+
+    return precision, recall, AP, f1, ap_class
 
 if __name__ == "__main__":  
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
-    parser.add_argument("--model", type=str, default="Yolo_v4", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4")
+    parser.add_argument("--img_size", type=int, default=300, help="YOLO type(416), SSD(300), size of each image dimension")
+    parser.add_argument("--model", type=str, default="SSD", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD")
     parser.add_argument('--dataset', default='AsiaTrafficDataset', type=str, help='training dataset, CoCo5K, CoCo, Container, VOCDataset, AsiaTrafficDataset')
     parser.add_argument("--batch_size", type=int, default=2, help="size of each image batch")
     parser.add_argument("--gradient_accumulations", type=int, default=2, help="number of gradient accums before step")
@@ -99,7 +147,6 @@ if __name__ == "__main__":
     parser.add_argument("--pretrained_weights", type=str, help="if specified starts from checkpoint model")
     parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
     parser.add_argument("--n_gpu", type=int, default=1, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--img_size", type=int, default=416, help="size of each image dimension")
 
     parser.add_argument("--iou_thres", type=float, default=0.5, help="iou threshold required to qualify as detected")
     parser.add_argument("--conf_thres", type=float, default=0.001, help="object confidence threshold")
@@ -110,7 +157,8 @@ if __name__ == "__main__":
     parser.add_argument("--reduction", type=int, default=32)
     # parser.add_argument("--saved_path", type=str, default="save")
     # parser.add_argument("--load_epoch", type=int, default=8)
-    parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\Yolo_v4\experiment_10")
+    parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\SSD\experiment_0")
+    # parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\Yolo_v4\experiment_10")
     
     
     opt = parser.parse_args()
@@ -124,21 +172,22 @@ if __name__ == "__main__":
     # 3. Selects new scale image size every tenth batch
     valid_dataset = None
     if opt.dataset == "CoCo5K":
-        valid_dataset = CoCo5KDataset(img_size=416, is_training = False)
+        valid_dataset = CoCo5KDataset(img_size=opt.img_size, is_training = False)
     elif opt.dataset == "CoCo":
-        valid_dataset = CoCoDataset(img_size=416, is_training = False)
+        valid_dataset = CoCoDataset(img_size=opt.img_size, is_training = False)
     elif opt.dataset == "Container":
-        valid_dataset = ContainerDataset(img_size=416, is_training = False)
+        valid_dataset = ContainerDataset(img_size=opt.img_size, is_training = False)
     elif opt.dataset == "VOCDataset":
-        valid_dataset = VOCDataset(img_size=416, is_training = False)
+        valid_dataset = VOCDataset(img_size=opt.img_size, is_training = False)
     elif opt.dataset == "AsiaTrafficDataset":
-        valid_dataset = AsiaTrafficDataset(img_size=416, is_training = False)
+        valid_dataset = AsiaTrafficDataset(img_size=opt.img_size, is_training = False)
 
     class_names = valid_dataset.classes
     opt.num_class = len(valid_dataset.classes)
+    print("num_class:", opt.num_class)
 
     net = None
-    save_image_path = './predict/{}/'.format(opt.dataset)
+    save_image_path = './predict/{}/{}/'.format(opt.dataset, opt.model)
     if not os.path.exists(save_image_path): os.makedirs(save_image_path)
 
     if opt.model == "Yolo_v1":        
@@ -200,17 +249,28 @@ if __name__ == "__main__":
         model = torch.nn.DataParallel(net, device_ids=num_gpus).cuda()
 
     
-
-    precision, recall, AP, f1, ap_class = evaluate(
-        save_image_path,
-        model,
-        dataset=valid_dataset,
-        iou_thres=opt.iou_thres,
-        conf_thres=opt.conf_thres,
-        nms_thres=opt.nms_thres,
-        img_size=opt.img_size,
-        batch_size=opt.batch_size,
-    )
+    if opt.model == "SSD":
+        precision, recall, AP, f1, ap_class = evaluate_ssd(
+            save_image_path,
+            model,
+            dataset=valid_dataset,
+            iou_thres=opt.iou_thres,
+            conf_thres=opt.conf_thres,
+            nms_thres=opt.nms_thres,
+            img_size=opt.img_size,
+            batch_size=opt.batch_size,
+        )
+    else:
+        precision, recall, AP, f1, ap_class = evaluate_yolo(
+            save_image_path,
+            model,
+            dataset=valid_dataset,
+            iou_thres=opt.iou_thres,
+            conf_thres=opt.conf_thres,
+            nms_thres=opt.nms_thres,
+            img_size=opt.img_size,
+            batch_size=opt.batch_size,
+        )
 
     print("Average Precisions:")
     for i, c in enumerate(ap_class):
