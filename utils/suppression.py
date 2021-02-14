@@ -1,6 +1,6 @@
 import torch
 from utils.func import xywh2xyxy, bbox_iou
-from utils.func import center_to_points, undo_offsets, get_nonzero_classes, iou
+from utils.func import center_to_points_nms, undo_offsets, get_nonzero_classes, iou
 
 def non_max_suppression_yolo(predictions, conf_thres=0.5, nms_thres=0.4):
     """
@@ -68,7 +68,7 @@ def non_max_suppression_yolo(predictions, conf_thres=0.5, nms_thres=0.4):
 def non_max_suppression_ssd(predictions, default_boxes, topk = 100, nms_thresh = 0.5, class_thresh = 0.45):
     predicted_classes, predicted_boxes_bsz = predictions
     predicted_boxes_bsz = undo_offsets(default_boxes, predicted_boxes_bsz)
-    predicted_boxes_bsz = center_to_points(predicted_boxes_bsz)
+    predicted_boxes_bsz = center_to_points_nms(predicted_boxes_bsz)
 
     classes_bsz, _, scores_bsz = get_nonzero_classes(predicted_classes.squeeze(0), norm=True)
     classes_unique = torch.unique(classes_bsz)
@@ -111,4 +111,66 @@ def non_max_suppression_ssd(predictions, default_boxes, topk = 100, nms_thresh =
                 
                 class_idxs_by_score = class_idxs_by_score[ious <= nms_thresh]
         
-    return nms_boxes[:num_boxes]
+    return nms_boxes[:,:num_boxes]
+
+def non_max_suppression_retinaNet(predictions, anchor_boxes, topk = 100, nms_thresh = 0.5, class_thresh = 0.45, mode='union'):
+    loc_preds, cls_preds = predictions
+    nms_boxes = []
+    for bid in range(loc_preds.size(0)):
+        loc_xy = loc_preds[bid, :,:2]
+        loc_wh = loc_preds[bid, :,2:]
+
+        xy = loc_xy * anchor_boxes[:,2:] + anchor_boxes[:,:2]
+        wh = loc_wh.exp() * anchor_boxes[:,2:]
+        boxes = torch.cat([xy-wh/2, xy+wh/2], 1)  # [#anchors,4]
+
+        score, labels = cls_preds[bid].sigmoid().max(1)          # [#anchors,]
+        ids = score > class_thresh
+        ids = ids.nonzero().squeeze()             # [#obj,]
+        # keep = box_nms(boxes[ids], score[ids], threshold=NMS_THRESH)
+        bboxes = boxes[ids]
+        scores = score[ids]
+        x1 = bboxes[:,0]
+        y1 = bboxes[:,1]
+        x2 = bboxes[:,2]
+        y2 = bboxes[:,3]
+
+        areas = (x2-x1+1) * (y2-y1+1)
+        _, order = scores.sort(0, descending=True)
+        order = order[:topk]
+
+        keep = []
+        while order.numel() > 0:
+            if order.numel() == 1:
+                break
+            i = order[0].item()
+            keep.append(i)           
+
+            xx1 = x1[order[1:]].clamp(min=x1[i])
+            yy1 = y1[order[1:]].clamp(min=y1[i])
+            xx2 = x2[order[1:]].clamp(max=x2[i])
+            yy2 = y2[order[1:]].clamp(max=y2[i])
+
+            w = (xx2-xx1+1).clamp(min=0)
+            h = (yy2-yy1+1).clamp(min=0)
+            inter = w*h
+
+            if mode == 'union':
+                ovr = inter / (areas[i] + areas[order[1:]] - inter)
+            elif mode == 'min':
+                ovr = inter / areas[order[1:]].clamp(max=areas[i])
+            else:
+                raise TypeError('Unknown nms mode: %s.' % mode)
+
+            ids = (ovr<=nms_thresh).nonzero().squeeze()
+            if ids.numel() == 0:
+                break
+            order = order[ids+1]
+        keep = torch.LongTensor(keep)
+        nms_boxes.append(torch.cat([
+            boxes[keep], 
+            torch.zeros((len(keep),1)).type(torch.float32).cuda(),
+            scores[keep].unsqueeze(1), 
+            labels[keep].unsqueeze(1).type(torch.float32)
+            ], dim = 1).unsqueeze(0))
+    return torch.cat(nms_boxes, dim=0)

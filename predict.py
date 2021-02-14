@@ -29,7 +29,7 @@ import pickle
 import copy
 from utils.mark import mark_pred, mark_target
 from utils.func import *
-from utils.suppression import non_max_suppression_yolo, non_max_suppression_ssd
+from utils.suppression import non_max_suppression_yolo, non_max_suppression_ssd, non_max_suppression_retinaNet
 
 from tqdm import tqdm
 from glob import glob
@@ -134,11 +134,64 @@ def evaluate_ssd(save_image_path, model, dataset, iou_thres, conf_thres, nms_thr
 
     return precision, recall, AP, f1, ap_class
 
+def evaluate_retinaNet(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
+    model.eval()
+
+    # anchor_boxes for RetinaNet
+    input_size = torch.Tensor([opt.img_size,opt.img_size])
+    anchor_boxes = get_anchor_boxes(input_size).to(device)
+
+    # Get dataloader
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=False, num_workers=1, collate_fn=dataset.collate_fn
+    )
+
+    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+
+    labels = []
+    sample_metrics = []  # List of tuples (TP, confs, pred)
+    orign_list = []
+    for batch_i, (_, imgs, targets) in enumerate(tqdm(dataloader, desc="Detecting objects")):
+        if targets.shape[0] == 0: continue
+        # Extract labels
+        labels += targets[:, 1].tolist()
+        # Rescale target
+        targets[:, 2:] *= img_size
+
+        imgs = Variable(imgs.type(Tensor), requires_grad=False)
+
+        with torch.no_grad():
+            outputs = model(imgs)  
+            suppress_output = non_max_suppression_retinaNet(outputs, anchor_boxes) 
+            suppress_output = suppress_output.cuda()
+        
+        for idx, img in enumerate(imgs):
+            img = np.array(img.permute(1, 2, 0).cpu()*255, dtype=np.uint8) # Re multiply (cv2 mode)
+            pred_img = copy.deepcopy(img)
+            suppress_o = suppress_output[idx] # [xmin, ymin, xmax, ymax, 0, class_score, class_pred] # [66, 7]
+            
+            target_img = mark_target(img, targets, dataset, idx)
+            pred_img = mark_pred(pred_img, suppress_o, dataset)
+            vis = np.concatenate((target_img, pred_img), axis=1)
+            # cv2.imshow('win', vis)
+            # cv2.waitKey()
+            cv2.imwrite(save_image_path + 'val{}_jpg.png'.format(idx + batch_i), vis)
+
+        sample_metrics += get_batch_statistics(suppress_output, targets.cuda(), iou_threshold=iou_thres)
+        if batch_i > 10: break
+
+    # Concatenate sample statistics
+    true_positives, pred_scores, pred_labels = [np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
+    precision, recall, AP, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
+
+    return precision, recall, AP, f1, ap_class
+
+
 if __name__ == "__main__":  
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
-    parser.add_argument("--img_size", type=int, default=300, help="YOLO type(416), SSD(300), size of each image dimension")
-    parser.add_argument("--model", type=str, default="SSD", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD")
+    parser.add_argument("--img_size", type=int, default=300, help="YOLO type(416), SSD(300), RetinaNet(600), size of each image dimension")
+    parser.add_argument("--model", type=str, default="RetinaNet", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD/RetinaNet")
     parser.add_argument('--dataset', default='AsiaTrafficDataset', type=str, help='training dataset, CoCo5K, CoCo, Container, VOCDataset, AsiaTrafficDataset')
     parser.add_argument("--batch_size", type=int, default=2, help="size of each image batch")
     parser.add_argument("--gradient_accumulations", type=int, default=2, help="number of gradient accums before step")
@@ -156,8 +209,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_class", type=int, default=14, help="MosquitoContainer")
     parser.add_argument("--reduction", type=int, default=32)
     # parser.add_argument("--saved_path", type=str, default="save")
-    # parser.add_argument("--load_epoch", type=int, default=8)
-    parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\SSD\experiment_0")
+    # parser.add_argument("--load_epoch", type=int, default=8)    
+    parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\RetinaNet\experiment_10")
+    # parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\SSD\experiment_0")
     # parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\Yolo_v4\experiment_10")
     
     
@@ -194,19 +248,16 @@ if __name__ == "__main__":
         # Yolo V1 define
         from model.yolo_v1 import YOLOv1, RegionLoss
         net = YOLOv1(dropout= opt.dropout, num_class = opt.num_class)
-        criterion = RegionLoss(net.num_classes)        
         # outputs_shape torch.Size([1, 7, 7, (80 + 5)])
     elif opt.model == "Yolo_v2":
         # Yolo V2 define
         from model.yolo_v2 import YOLOv2, RegionLoss
         net = YOLOv2(num_classes = opt.num_class)    
-        criterion = RegionLoss(net.anchors, net.num_classes)
         # outputs_shape torch.Size([1, 5 * (80 + 5), 13, 13])   
     elif opt.model == "Yolo_v3":
         # Yolo V3 define
         from model.yolo_v3 import YOLOv3, MultiScaleRegionLoss
         net = YOLOv3(num_classes = opt.num_class)
-        criterion = MultiScaleRegionLoss(net.anchors, net.num_classes)
         # outputs_0_shape torch.Size([1,  3 * (80 + 5), 13, 13])
         # outputs_1_shape torch.Size([1,  3 * (80 + 5), 26, 26])
         # outputs_2_shape torch.Size([1,  3 * (80 + 5), 52, 52])
@@ -214,11 +265,18 @@ if __name__ == "__main__":
         # Yolo V4 define
         from model.yolo_v4 import YOLOv4, MultiScaleRegionLoss
         net = YOLOv4(yolov4conv137weight=None, n_classes=opt.num_class, inference=False)
-        criterion = MultiScaleRegionLoss(net.anchors, net.anch_masks, opt.num_class)
         # filters=(classes + 5)*<number of mask> mask = 3
         # outputs_0_shape torch.Size([1, 3 * (80 + 5), 52, 52])
         # outputs_1_shape torch.Size([1, 3 * (80 + 5), 26, 26])
         # outputs_2_shape torch.Size([1, 3 * (80 + 5), 13, 13])  
+    elif opt.model == "SSD":
+        from model.ssd import ssd, SSDLoss
+        net = ssd(num_classes=opt.num_class)
+        # outputs_shape torch.Size([2, 8732, (13 + 4)])
+    elif opt.model == "RetinaNet":
+        from model.retinaNet import RetinaNet, FocalLoss
+        net = RetinaNet(fpn=101, num_classes = opt.num_class)
+        # outputs_shape torch.Size([2, 76725, (13 + 4)])
 
     # Trained model path and name
     experiment_dir = opt.experiment_dir
@@ -251,6 +309,17 @@ if __name__ == "__main__":
     
     if opt.model == "SSD":
         precision, recall, AP, f1, ap_class = evaluate_ssd(
+            save_image_path,
+            model,
+            dataset=valid_dataset,
+            iou_thres=opt.iou_thres,
+            conf_thres=opt.conf_thres,
+            nms_thres=opt.nms_thres,
+            img_size=opt.img_size,
+            batch_size=opt.batch_size,
+        )
+    elif opt.model == "RetinaNet":
+        precision, recall, AP, f1, ap_class = evaluate_retinaNet(
             save_image_path,
             model,
             dataset=valid_dataset,

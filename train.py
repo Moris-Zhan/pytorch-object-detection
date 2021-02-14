@@ -29,7 +29,7 @@ import statistics
 from utils.saver import Saver
 from utils.pytorchtools import EarlyStopping
 from torchsummary import summary
-from utils.func import get_dboxes
+from utils.func import get_dboxes, get_anchor_boxes
 
 
 
@@ -37,9 +37,9 @@ from utils.func import get_dboxes
 if __name__ == "__main__":  
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
-    parser.add_argument("--img_size", type=int, default=416, help="YOLO type(416), SSD(300), size of each image dimension")
+    parser.add_argument("--img_size", type=int, default=600, help="YOLO type(416), SSD(300), RetinaNet(600), size of each image dimension")
     parser.add_argument('--dataset', default='AsiaTrafficDataset', type=str, help='training dataset, CoCo5K, CoCo, Container, VOCDataset, AsiaTrafficDataset')
-    parser.add_argument("--model", type=str, default="SSD", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD")
+    parser.add_argument("--model", type=str, default="RetinaNet", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD/RetinaNet")
     parser.add_argument("--batch_size", type=int, default=2, help="size of each image batch")
     parser.add_argument("--gradient_accumulations", type=int, default=2, help="number of gradient accums before step")
     parser.add_argument("--pretrained_weights", type=str, help="if specified starts from checkpoint model")
@@ -129,10 +129,16 @@ if __name__ == "__main__":
         from model.ssd import ssd, SSDLoss
         net = ssd(num_classes=opt.num_class)
         criterion = SSDLoss
-        # outputs_shape torch.Size([1, 8732, (13 + 4)])
+        # outputs_shape torch.Size([2, 8732, (13 + 4)])
+    elif opt.model == "RetinaNet":
+        from model.retinaNet import RetinaNet, FocalLoss
+        net = RetinaNet(fpn=101, num_classes = opt.num_class)
+        criterion = FocalLoss(num_classes=opt.num_class, img_size = opt.img_size)
+        # outputs_shape torch.Size([2, 76725, (13 + 4)])
+        
 
     opt.checkname = opt.model
-    # summary(net.cuda(), (3, 416, 416))
+    summary(net.cuda(), (3, 416, 416))
     print("device : ", device)
     if device.type == 'cpu':
         model = torch.nn.DataParallel(net)
@@ -159,9 +165,14 @@ if __name__ == "__main__":
     # initialize the early_stopping object
     early_stopping = EarlyStopping(saver, patience=3, verbose=True)
 
-    # default_boxes for SSD
-    default_boxes = get_dboxes()
-    default_boxes = default_boxes.to(device)
+    if opt.model == "SSD":
+        # default_boxes for SSD
+        default_boxes = get_dboxes()
+        default_boxes = default_boxes.to(device)
+    elif opt.model == "RetinaNet":
+        # anchor_boxes for RetinaNet
+        input_size = torch.Tensor([opt.img_size,opt.img_size])
+        anchor_boxes = get_anchor_boxes(input_size).to(device)
 
     loss = 0
     best_pred = 0.0
@@ -179,6 +190,9 @@ if __name__ == "__main__":
                 # Calc SSD Loss
                 if opt.model == "SSD":
                     loss, localization_loss, classification_loss = criterion(outputs, targets, default_boxes)  
+
+                elif opt.model ==  "RetinaNet":
+                    loss, localization_loss, classification_loss = criterion(outputs, targets, anchor_boxes)  
                 else:
                     # Calc Yolo V1/V2/V3/V4 Loss            
                     loss, \
@@ -189,7 +203,7 @@ if __name__ == "__main__":
                     loss_objectness, \
                     loss_noobjness = criterion(outputs, targets) 
 
-                if opt.model == "SSD":
+                if opt.model in ["SSD", "RetinaNet"]:
                     pbar.set_description("Model: {}, lr: {}, loss: {:.4f}, classification_loss: {:.4f}, localization_loss: {:.4f}".format(  
                         opt.model, optimizer.param_groups[0]["lr"], loss.item(), classification_loss, localization_loss))
 
