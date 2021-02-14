@@ -1,5 +1,3 @@
-# ObjectDetection
-My Frame work for ObjectDetection
 ## Overview
 I organizize the object detection algorithms proposed in recent years, and focused on **`COCO`, `VOC`, `water containers` and `Asia Traffic`** Dataset.
 This frame work also include **`EarlyStopping mechanism`**.
@@ -115,6 +113,8 @@ In addition, existing open data sets for object detection in ADAS applications u
 - Yolo V2
 - Yolo V3
 - Yolo V4
+- SSD
+- RetinaNet
 
 ## Prerequisites
 * **Windows 10**
@@ -151,4 +151,5 @@ python predict.py --model Yolo_v4  --experiment_dir "run\AsiaTrafficDataset\Yolo
 - tensorflow-yolov3 : https://github.com/Leyan529/tensorflow-yolov3
 - PyTorch-YOLOv3 : https://github.com/eavise-kul/lightnet/blob/b54f771a597d23863979d9274eb2ba90c05938e4/lightnet/models/_network_yolo_v3.py
 - PyTorch_YOLOv4 : https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/4ccef0ec8fe984e059378813e33b3740929e0c19/models.py
-- SSD: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/model.py#L323
+- SSD: https://github.com/nathansomavarapu/ssd/blob/86ddf22a3c6e8723d4c28f102923f444e0e2da44/ssd.py#L9
+- RetinaNet: https://github.com/kuangliu/pytorch-retinanet/blob/2d7c663350f330a34771a8fa6a4f37a2baa52a1d/retinanet.py#L8
