@@ -146,8 +146,6 @@ python predict.py --model Yolo_v4  --experiment_dir "run\AsiaTrafficDataset\Yolo
 ```
 
 ## Reference
-- PyTorch-YOLOv1 : ?
-- PyTorch-YOLOv2 : ?
 - PyTorch-YOLOv3 : https://github.com/bubbliiiing/yolo3-pytorch
 - PyTorch_YOLOv4 : https://github.com/bubbliiiing/yolov4-pytorch
 - SSD: https://github.com/bubbliiiing/ssd-pytorch
