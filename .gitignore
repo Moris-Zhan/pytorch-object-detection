@@ -1,2 +1,5 @@
 *.pyc
 *.pth
+logs(*
+map_out/
+pred_out/
