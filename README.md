@@ -109,12 +109,12 @@ In addition, existing open data sets for object detection in ADAS applications u
 ```
 
 ## Methods
-- Yolo V1
-- Yolo V2
-- Yolo V3
-- Yolo V4
+- YOLOv3
+- YOLOv4
 - SSD
 - RetinaNet
+- CenterNet
+- FasterRCNN
 
 ## Prerequisites
 * **Windows 10**
