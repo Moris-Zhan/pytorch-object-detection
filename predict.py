@@ -1,348 +1,146 @@
-from __future__ import division
-
-
+#-----------------------------------------------------------------------#
+#   predict.py將單張圖片預測、攝像頭檢測、FPS測試和目錄遍歷檢測等功能
+#   整合到了一個py文件中，通過指定mode進行模式的修改。
+#-----------------------------------------------------------------------#
+import time
 import os
-from os import path
-
 import cv2
-os.environ['CUDA_LAUNCH_BLOCKING'] = "1" 
-import argparse
-
-import torch
-
-from torchvision import transforms
-from torch.autograd import Variable
-import torch.optim as optim
-import os
-import sys
 import numpy as np
-import torch
-import torch.nn.functional as F
+from PIL import Image
 
-from dataset.CoCo5K import CoCo5KDataset
-from dataset.CoCoData import CoCoDataset
-from dataset.Container import ContainerDataset
-from dataset.VOCData import VOCDataset
-from dataset.AsiaTraffic import AsiaTrafficDataset
+# from yolov4.yolo import YOLO as Model
+# from yolov3.yolo import YOLO as Model
+# from ssd.ssd import SSD as Model
+# from faster_rcnn.frcnn import FRCNN as Model
+# from retinanet.retinanet import Retinanet as Model
+from centernet.centernet import CenterNet as Model
 
-import pickle
-import copy
-from utils.mark import mark_pred, mark_target
-from utils.func import *
-from utils.suppression import non_max_suppression_yolo, non_max_suppression_ssd, non_max_suppression_retinaNet
+if __name__ == "__main__":
+    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet//LANEdevkit"
+    model = Model()
+    #----------------------------------------------------------------------------------------------------------#
+    #   mode用於指定測試的模式：
+    #   'predict'表示單張圖片預測，如果想對預測過程進行修改，如保存圖片，截取對象等，可以先看下方詳細的注釋
+    #   'video'表示視頻檢測，可調用攝像頭或者視頻進行檢測，詳情查看下方注釋。
+    #   'fps'表示測試fps，使用的圖片是img里面的street.jpg，詳情查看下方注釋。
+    #   'dir_predict'表示遍歷文件夾進行檢測並保存。默認遍歷img文件夾，保存img_out文件夾，詳情查看下方注釋。
+    #----------------------------------------------------------------------------------------------------------#
+    # mode = "predict"
+    mode = "video"
+    #----------------------------------------------------------------------------------------------------------#
+    #   video_path用於指定視頻的路徑，當video_path=0時表示檢測攝像頭
+    #   想要檢測視頻，則設置如video_path = "xxx.mp4"即可，代表讀取出根目錄下的xxx.mp4文件。
+    #   video_save_path表示視頻保存的路徑，當video_save_path=""時表示不保存
+    #   想要保存視頻，則設置如video_save_path = "yyy.mp4"即可，代表保存為根目錄下的yyy.mp4文件。
+    #   video_fps用於保存的視頻的fps
+    #   video_path、video_save_path和video_fps僅在mode='video'時有效
+    #   保存視頻時需要ctrl+c退出或者運行到最後一幀才會完成完整的保存步驟。
+    #----------------------------------------------------------------------------------------------------------#
+    # video_save_path = ""
+    video_path      = os.path.join(root_path, "Drive-View-Kaohsiung-Taiwan.mp4")
+    # video_path      = os.path.join(root_path, "Drive-View-Noon-Driving-Taipei-Taiwan.mp4")
+    video_save_dir =os.path.join("pred_out", Model.__module__)
+    video_save_path = os.path.join(video_save_dir, os.path.basename(video_path))
+    if not os.path.exists(video_save_dir): os.makedirs(video_save_dir)
+    video_fps       = 25.0
+    #-------------------------------------------------------------------------#
+    #   test_interval用於指定測量fps的時候，圖片檢測的次數
+    #   理論上test_interval越大，fps越準確。
+    #-------------------------------------------------------------------------#
+    test_interval   = 100
+    #-------------------------------------------------------------------------#
+    #   dir_origin_path指定了用於檢測的圖片的文件夾路徑
+    #   dir_save_path指定了檢測完圖片的保存路徑
+    #   dir_origin_path和dir_save_path僅在mode='dir_predict'時有效
+    #-------------------------------------------------------------------------#
+    dir_origin_path = "img/"
+    dir_save_path   = "img_out/"
 
-from tqdm import tqdm
-from glob import glob
-colors = pickle.load(open("dataset//pallete", "rb")) 
+    if mode == "predict":
+        '''
+        1、如果想要進行檢測完的圖片的保存，利用r_image.save("img.jpg")即可保存，直接在predict.py里進行修改即可。 
+        2、如果想要獲得預測框的坐標，可以進入yolo.detect_image函數，在繪圖部分讀取top，left，bottom，right這四個值。
+        3、如果想要利用預測框截取下目標，可以進入yolo.detect_image函數，在繪圖部分利用獲取到的top，left，bottom，right這四個值
+        在原圖上利用矩陣的方式進行截取。
+        4、如果想要在預測圖上寫額外的字，比如檢測到的特定目標的數量，可以進入yolo.detect_image函數，在繪圖部分對predicted_class進行判斷，
+        比如判斷if predicted_class == 'car': 即可判斷當前目標是否為車，然後記錄數量即可。利用draw.text即可寫字。
+        '''
+        while True:
+            img = dir_origin_path + input('Input image filename:')
+            try:
+                image = Image.open(img)
+            except:
+                print('Open Error! Try again!')
+                continue
+            else:
+                r_image = model.detect_image(image)
+                r_image.show()
 
+    elif mode == "video":
+        capture = cv2.VideoCapture(video_path)
+        if video_save_path!="":
+            fourcc  = cv2.VideoWriter_fourcc(*'XVID')
+            size    = (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+            out     = cv2.VideoWriter(video_save_path, fourcc, video_fps, size)
 
-def evaluate_yolo(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
-    model.eval()
-    # Get dataloader
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=batch_size, shuffle=False, num_workers=1, collate_fn=dataset.collate_fn
-    )
+        ref, frame = capture.read()
+        # if not ref:
+        #     raise ValueError("未能正確讀取攝像頭（視頻），請注意是否正確安裝攝像頭（是否正確填寫視頻路徑）。")
 
-    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-
-    labels = []
-    sample_metrics = []  # List of tuples (TP, confs, pred)
-    orign_list = []
-    for batch_i, (_, imgs, targets) in enumerate(tqdm(dataloader, desc="Detecting objects")):
-        if targets.shape[0] == 0: continue
-        # Extract labels
-        labels += targets[:, 1].tolist()
-        # Rescale target
-        targets[:, 2:] *= img_size
-
-        imgs = Variable(imgs.type(Tensor), requires_grad=False)
-
-        with torch.no_grad():
-            outputs = model(imgs)  
-            suppress_output = non_max_suppression_yolo(outputs, conf_thres=conf_thres, nms_thres=nms_thres)
-        
-        for idx, img in enumerate(imgs):
-            img = np.array(img.permute(1, 2, 0).cpu()*255, dtype=np.uint8) # Re multiply (cv2 mode)
-            pred_img = copy.deepcopy(img)
-            suppress_o = suppress_output[idx] # [xmin, ymin, xmax, ymax, conf, cls]
+        fps = 0.0
+        while(True):
+            t1 = time.time()
+            # 讀取某一幀
+            ref, frame = capture.read()
+            if not ref:
+                break
+            # 格式轉變，BGRtoRGB
+            frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+            # 轉變成Image
+            frame = Image.fromarray(np.uint8(frame))
+            # 進行檢測
+            frame = np.array(model.detect_image(frame))
+            # RGBtoBGR滿足opencv顯示格式
+            frame = cv2.cvtColor(frame,cv2.COLOR_RGB2BGR)
             
-            target_img = mark_target(img, targets, dataset, idx)
-            pred_img = mark_pred(pred_img, suppress_o, dataset)
-            vis = np.concatenate((target_img, pred_img), axis=1)
-            # cv2.imshow('win', vis)
-            # cv2.waitKey()
-            cv2.imwrite(save_image_path + 'val{}_jpg.png'.format(idx + batch_i), vis)
-
-        sample_metrics += get_batch_statistics(suppress_output, targets.cuda(), iou_threshold=iou_thres)
-        if batch_i > 10: break
-
-    # Concatenate sample statistics
-    true_positives, pred_scores, pred_labels = [np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
-    precision, recall, AP, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
-
-    return precision, recall, AP, f1, ap_class
-
-def evaluate_ssd(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
-    model.eval()
-
-    # default_boxes for SSD
-    default_boxes = get_dboxes()
-    default_boxes = default_boxes.cuda()
-
-    # Get dataloader
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=batch_size, shuffle=False, num_workers=1, collate_fn=dataset.collate_fn
-    )
-
-    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-
-    labels = []
-    sample_metrics = []  # List of tuples (TP, confs, pred)
-    orign_list = []
-    for batch_i, (_, imgs, targets) in enumerate(tqdm(dataloader, desc="Detecting objects")):
-        if targets.shape[0] == 0: continue
-        # Extract labels
-        labels += targets[:, 1].tolist()
-        # Rescale target
-        targets[:, 2:] *= img_size
-
-        imgs = Variable(imgs.type(Tensor), requires_grad=False)
-
-        with torch.no_grad():
-            outputs = model(imgs)  
-            suppress_output = non_max_suppression_ssd(outputs, default_boxes) 
-            suppress_output = suppress_output.cuda()
-        
-        for idx, img in enumerate(imgs):
-            img = np.array(img.permute(1, 2, 0).cpu()*255, dtype=np.uint8) # Re multiply (cv2 mode)
-            pred_img = copy.deepcopy(img)
-            suppress_o = suppress_output[idx] # [xmin, ymin, xmax, ymax, 0, class_score, class_pred] # [66, 7]
+            fps  = ( fps + (1./(time.time()-t1)) ) / 2
+            print("fps= %.2f"%(fps))
+            frame = cv2.putText(frame, "fps= %.2f"%(fps), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
-            target_img = mark_target(img, targets, dataset, idx)
-            pred_img = mark_pred(pred_img, suppress_o, dataset)
-            vis = np.concatenate((target_img, pred_img), axis=1)
-            # cv2.imshow('win', vis)
-            # cv2.waitKey()
-            cv2.imwrite(save_image_path + 'val{}_jpg.png'.format(idx + batch_i), vis)
+            cv2.imshow("video",frame)
+            c= cv2.waitKey(1) & 0xff 
+            if video_save_path!="":
+                out.write(frame)
 
-        sample_metrics += get_batch_statistics(suppress_output, targets.cuda(), iou_threshold=iou_thres)
-        if batch_i > 10: break
+            if c==27:
+                capture.release()
+                break
 
-    # Concatenate sample statistics
-    true_positives, pred_scores, pred_labels = [np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
-    precision, recall, AP, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
+        print("Video Detection Done!")
+        capture.release()
+        if video_save_path!="":
+            print("Save processed video to the path :" + video_save_path)
+            out.release()
+        cv2.destroyAllWindows()
 
-    return precision, recall, AP, f1, ap_class
+    elif mode == "fps":
+        img = Image.open('img/street.jpg')
+        tact_time = model.get_FPS(img, test_interval)
+        print(str(tact_time) + ' seconds, ' + str(1/tact_time) + 'FPS, @batch_size 1')
 
-def evaluate_retinaNet(save_image_path, model, dataset, iou_thres, conf_thres, nms_thres, img_size, batch_size):
-    model.eval()
+    elif mode == "dir_predict":
+        import os
+        from tqdm import tqdm
 
-    # anchor_boxes for RetinaNet
-    input_size = torch.Tensor([opt.img_size,opt.img_size])
-    anchor_boxes = get_anchor_boxes(input_size).to(device)
-
-    # Get dataloader
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=batch_size, shuffle=False, num_workers=1, collate_fn=dataset.collate_fn
-    )
-
-    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
-
-    labels = []
-    sample_metrics = []  # List of tuples (TP, confs, pred)
-    orign_list = []
-    for batch_i, (_, imgs, targets) in enumerate(tqdm(dataloader, desc="Detecting objects")):
-        if targets.shape[0] == 0: continue
-        # Extract labels
-        labels += targets[:, 1].tolist()
-        # Rescale target
-        targets[:, 2:] *= img_size
-
-        imgs = Variable(imgs.type(Tensor), requires_grad=False)
-
-        with torch.no_grad():
-            outputs = model(imgs)  
-            suppress_output = non_max_suppression_retinaNet(outputs, anchor_boxes) 
-            suppress_output = suppress_output.cuda()
-        
-        for idx, img in enumerate(imgs):
-            img = np.array(img.permute(1, 2, 0).cpu()*255, dtype=np.uint8) # Re multiply (cv2 mode)
-            pred_img = copy.deepcopy(img)
-            suppress_o = suppress_output[idx] # [xmin, ymin, xmax, ymax, 0, class_score, class_pred] # [66, 7]
-            
-            target_img = mark_target(img, targets, dataset, idx)
-            pred_img = mark_pred(pred_img, suppress_o, dataset)
-            vis = np.concatenate((target_img, pred_img), axis=1)
-            # cv2.imshow('win', vis)
-            # cv2.waitKey()
-            cv2.imwrite(save_image_path + 'val{}_jpg.png'.format(idx + batch_i), vis)
-
-        sample_metrics += get_batch_statistics(suppress_output, targets.cuda(), iou_threshold=iou_thres)
-        if batch_i > 10: break
-
-    # Concatenate sample statistics
-    true_positives, pred_scores, pred_labels = [np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
-    precision, recall, AP, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
-
-    return precision, recall, AP, f1, ap_class
-
-
-if __name__ == "__main__":  
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
-    parser.add_argument("--img_size", type=int, default=300, help="YOLO type(416), SSD(300), RetinaNet(600), size of each image dimension")
-    parser.add_argument("--model", type=str, default="RetinaNet", help="Yolo_v1/Yolo_v2/Yolo_v3/Yolo_v4/SSD/RetinaNet")
-    parser.add_argument('--dataset', default='AsiaTrafficDataset', type=str, help='training dataset, CoCo5K, CoCo, Container, VOCDataset, AsiaTrafficDataset')
-    parser.add_argument("--batch_size", type=int, default=2, help="size of each image batch")
-    parser.add_argument("--gradient_accumulations", type=int, default=2, help="number of gradient accums before step")
-    parser.add_argument("--model_def", type=str, default="config/yolov3.cfg", help="path to model definition file")
-    parser.add_argument("--data_config", type=str, default="config/coco.data", help="path to data config file")
-    parser.add_argument("--pretrained_weights", type=str, help="if specified starts from checkpoint model")
-    parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads to use during batch generation")
-    parser.add_argument("--n_gpu", type=int, default=1, help="number of cpu threads to use during batch generation")
-
-    parser.add_argument("--iou_thres", type=float, default=0.5, help="iou threshold required to qualify as detected")
-    parser.add_argument("--conf_thres", type=float, default=0.001, help="object confidence threshold")
-    parser.add_argument("--nms_thres", type=float, default=0.5, help="iou thresshold for non-maximum suppression")
-    
-    # parser.add_argument("--num_class", type=int, default=80, help="CoCo5K")
-    parser.add_argument("--num_class", type=int, default=14, help="MosquitoContainer")
-    parser.add_argument("--reduction", type=int, default=32)
-    # parser.add_argument("--saved_path", type=str, default="save")
-    # parser.add_argument("--load_epoch", type=int, default=8)    
-    parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\RetinaNet\experiment_10")
-    # parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\SSD\experiment_0")
-    # parser.add_argument('--experiment_dir', help='dir of experiment', type=str, default = "run\AsiaTrafficDataset\Yolo_v4\experiment_10")
-    
-    
-    opt = parser.parse_args()
-    print(opt)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Get val dataset (CoCo5K, CoCo, Container, VOCDataset)
-    # 1. Padding h & w to each size
-    # 2. calculate new padding coordinate targets (x, y, w, h)
-    # 3. Selects new scale image size every tenth batch
-    valid_dataset = None
-    if opt.dataset == "CoCo5K":
-        valid_dataset = CoCo5KDataset(img_size=opt.img_size, is_training = False)
-    elif opt.dataset == "CoCo":
-        valid_dataset = CoCoDataset(img_size=opt.img_size, is_training = False)
-    elif opt.dataset == "Container":
-        valid_dataset = ContainerDataset(img_size=opt.img_size, is_training = False)
-    elif opt.dataset == "VOCDataset":
-        valid_dataset = VOCDataset(img_size=opt.img_size, is_training = False)
-    elif opt.dataset == "AsiaTrafficDataset":
-        valid_dataset = AsiaTrafficDataset(img_size=opt.img_size, is_training = False)
-
-    class_names = valid_dataset.classes
-    opt.num_class = len(valid_dataset.classes)
-    print("num_class:", opt.num_class)
-
-    net = None
-    save_image_path = './predict/{}/{}/'.format(opt.dataset, opt.model)
-    if not os.path.exists(save_image_path): os.makedirs(save_image_path)
-
-    if opt.model == "Yolo_v1":        
-        # Yolo V1 define
-        from model.yolo_v1 import YOLOv1, RegionLoss
-        net = YOLOv1(dropout= opt.dropout, num_class = opt.num_class)
-        # outputs_shape torch.Size([1, 7, 7, (80 + 5)])
-    elif opt.model == "Yolo_v2":
-        # Yolo V2 define
-        from model.yolo_v2 import YOLOv2, RegionLoss
-        net = YOLOv2(num_classes = opt.num_class)    
-        # outputs_shape torch.Size([1, 5 * (80 + 5), 13, 13])   
-    elif opt.model == "Yolo_v3":
-        # Yolo V3 define
-        from model.yolo_v3 import YOLOv3, MultiScaleRegionLoss
-        net = YOLOv3(num_classes = opt.num_class)
-        # outputs_0_shape torch.Size([1,  3 * (80 + 5), 13, 13])
-        # outputs_1_shape torch.Size([1,  3 * (80 + 5), 26, 26])
-        # outputs_2_shape torch.Size([1,  3 * (80 + 5), 52, 52])
-    elif opt.model == "Yolo_v4":
-        # Yolo V4 define
-        from model.yolo_v4 import YOLOv4, MultiScaleRegionLoss
-        net = YOLOv4(yolov4conv137weight=None, n_classes=opt.num_class, inference=False)
-        # filters=(classes + 5)*<number of mask> mask = 3
-        # outputs_0_shape torch.Size([1, 3 * (80 + 5), 52, 52])
-        # outputs_1_shape torch.Size([1, 3 * (80 + 5), 26, 26])
-        # outputs_2_shape torch.Size([1, 3 * (80 + 5), 13, 13])  
-    elif opt.model == "SSD":
-        from model.ssd import ssd, SSDLoss
-        net = ssd(num_classes=opt.num_class)
-        # outputs_shape torch.Size([2, 8732, (13 + 4)])
-    elif opt.model == "RetinaNet":
-        from model.retinaNet import RetinaNet, FocalLoss
-        net = RetinaNet(fpn=101, num_classes = opt.num_class)
-        # outputs_shape torch.Size([2, 76725, (13 + 4)])
-
-    # Trained model path and name
-    experiment_dir = opt.experiment_dir
-    model_name = glob(os.path.join(opt.experiment_dir, "*.pkl"))[0]
-    load_name = os.path.join(experiment_dir, 'checkpoint.pth.tar')
-
-    # Load save/trained model
-    if not os.path.isfile(model_name):
-        raise RuntimeError("=> no model found at '{}'".format(model_name))
-    print('====>loading trained model from ' + model_name)
-    if not os.path.isfile(load_name):
-        raise RuntimeError("=> no checkpoint found at '{}'".format(load_name))
-    print('====>loading trained model from ' + load_name)
-
-    net = torch.load(model_name)
-    checkpoint = torch.load(load_name)
-
-    # model_path = os.path.join(opt.saved_path, "{}_{}_params".format(opt.model, opt.load_epoch))
-    # checkpoint = torch.load(model_path)
-    net.load_state_dict(checkpoint['state_dict'])
-    epoch = checkpoint['epoch']
-    loss = checkpoint['loss']
-
-    if device.type == 'cpu':
-        model = torch.nn.DataParallel(net)
+        img_names = os.listdir(dir_origin_path)
+        for img_name in tqdm(img_names):
+            if img_name.lower().endswith(('.bmp', '.dib', '.png', '.jpg', '.jpeg', '.pbm', '.pgm', '.ppm', '.tif', '.tiff')):
+                image_path  = os.path.join(dir_origin_path, img_name)
+                image       = Image.open(image_path)
+                r_image     = model.detect_image(image)
+                if not os.path.exists(dir_save_path):
+                    os.makedirs(dir_save_path)
+                r_image.save(os.path.join(dir_save_path, img_name))
+                
     else:
-        num_gpus = [i for i in range(opt.n_gpu)]
-        model = torch.nn.DataParallel(net, device_ids=num_gpus).cuda()
-
-    
-    if opt.model == "SSD":
-        precision, recall, AP, f1, ap_class = evaluate_ssd(
-            save_image_path,
-            model,
-            dataset=valid_dataset,
-            iou_thres=opt.iou_thres,
-            conf_thres=opt.conf_thres,
-            nms_thres=opt.nms_thres,
-            img_size=opt.img_size,
-            batch_size=opt.batch_size,
-        )
-    elif opt.model == "RetinaNet":
-        precision, recall, AP, f1, ap_class = evaluate_retinaNet(
-            save_image_path,
-            model,
-            dataset=valid_dataset,
-            iou_thres=opt.iou_thres,
-            conf_thres=opt.conf_thres,
-            nms_thres=opt.nms_thres,
-            img_size=opt.img_size,
-            batch_size=opt.batch_size,
-        )
-    else:
-        precision, recall, AP, f1, ap_class = evaluate_yolo(
-            save_image_path,
-            model,
-            dataset=valid_dataset,
-            iou_thres=opt.iou_thres,
-            conf_thres=opt.conf_thres,
-            nms_thres=opt.nms_thres,
-            img_size=opt.img_size,
-            batch_size=opt.batch_size,
-        )
-
-    print("Average Precisions:")
-    for i, c in enumerate(ap_class):
-        print(f"+ Class '{c}' ({class_names[c]}) - AP: {AP[i]}")
-
-    print(f"mAP: {AP.mean()}")
+        raise AssertionError("Please specify the correct mode: 'predict', 'video', 'fps' or 'dir_predict'.")
