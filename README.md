@@ -146,10 +146,11 @@ python predict.py --model Yolo_v4  --experiment_dir "run\AsiaTrafficDataset\Yolo
 ```
 
 ## Reference
-- PyTorch-YOLOv1 : https://github.com/ssaru/You_Only_Look_Once/blob/master/yolov1.py
-- PyTorch-YOLOv2 : https://github.com/uvipen/Yolo-v2-pytorch/blob/9589413b5dce0476eb9cccc41945cf30cf131b34/src/yolo_net.py
-- tensorflow-yolov3 : https://github.com/Leyan529/tensorflow-yolov3
-- PyTorch-YOLOv3 : https://github.com/eavise-kul/lightnet/blob/b54f771a597d23863979d9274eb2ba90c05938e4/lightnet/models/_network_yolo_v3.py
-- PyTorch_YOLOv4 : https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/4ccef0ec8fe984e059378813e33b3740929e0c19/models.py
-- SSD: https://github.com/nathansomavarapu/ssd/blob/86ddf22a3c6e8723d4c28f102923f444e0e2da44/ssd.py#L9
-- RetinaNet: https://github.com/kuangliu/pytorch-retinanet/blob/2d7c663350f330a34771a8fa6a4f37a2baa52a1d/retinanet.py#L8
+- PyTorch-YOLOv1 : ?
+- PyTorch-YOLOv2 : ?
+- PyTorch-YOLOv3 : https://github.com/bubbliiiing/yolo3-pytorch
+- PyTorch_YOLOv4 : https://github.com/bubbliiiing/yolov4-pytorch
+- SSD: https://github.com/bubbliiiing/ssd-pytorch
+- RetinaNet: https://github.com/bubbliiiing/retinanet-pytorch
+- CenterNet: https://github.com/bubbliiiing/centernet-pytorch
+- FasterRCNN: https://github.com/bubbliiiing/faster-rcnn-pytorch
