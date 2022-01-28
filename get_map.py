@@ -11,6 +11,15 @@ from tqdm import tqdm
 # from retinanet.retinanet import Retinanet as Model
 from centernet.centernet import CenterNet as Model
 
+class DataType:
+    VOC   = 0
+    LANE   = 1
+    BDD    = 2 
+    COCO   = 3
+    WIDERPERSON   = 4
+    MosquitoContainer = 5
+    AsianTraffic = 6
+
 
 class ModelType:
     YOLOV4   = 0
@@ -21,7 +30,7 @@ class ModelType:
     CENTERNET      = 5
 
 def check_model(o):
-    str__ = str(Model.__module__).split(".")[0].lower()
+    str__ = str(o).split(".")[0].lower()
     if "yolov4" in str__:  return ModelType.YOLOV4
     elif "yolov3" in str__:  return ModelType.YOLOV3
     elif "ssd" in str__:  return ModelType.SSD
@@ -33,8 +42,10 @@ from glob import glob
 
 if __name__ == "__main__":
     root_path = "D://WorkSpace//JupyterWorkSpace"
-
-    modelType = check_model(Model)
+    #------------------------------#
+    dataType = DataType.LANE
+    modelType = check_model(Model.__module__)
+    #-------------------------------#
     if modelType == ModelType.YOLOV4: 
         from yolov4.utils.utils import get_classes
         from yolov4.utils.utils_map import get_coco_map, get_map
@@ -78,21 +89,33 @@ if __name__ == "__main__":
     #   此處的classes_path用於指定需要測量VOC_map的類別
     #   一般情況下與訓練和預測所用的classes_path一致即可
     #-------------------------------------------------------#
-    classes_path    = 'model_data/lane_classes.txt'
-    map_dict = {
-        "SA":"Straight Arrow",
-        "LA":"Left Arrow",
-        "RA":"Right Arrow",
-        "SLA":"Straight-Left Arrow",
-        "SRA":"Straight-Right Arrow",
-        "DM":"Diamond",
-        "PC":"Pedestrian Crossing",
-        "JB":"Junction Box",
-        "SL":"Slow",
-        "BL":"Bus Lane",
-        "CL":"Cycle Lane"
-    }
-
+    if dataType == DataType.LANE:
+        classes_path    = 'model_data/lane_classes.txt'
+        map_dict = {
+            "SA":"Straight Arrow",
+            "LA":"Left Arrow",
+            "RA":"Right Arrow",
+            "SLA":"Straight-Left Arrow",
+            "SRA":"Straight-Right Arrow",
+            "DM":"Diamond",
+            "PC":"Pedestrian Crossing",
+            "JB":"Junction Box",
+            "SL":"Slow",
+            "BL":"Bus Lane",
+            "CL":"Cycle Lane"
+        }
+    elif dataType == DataType.BDD:
+        classes_path    = 'model_data/bdd_classes.txt'    
+    elif dataType == DataType.VOC:
+        classes_path    = 'model_data/voc_classes.txt'
+    elif dataType == DataType.COCO:
+        classes_path    = 'model_data/coco_classes.txt'    
+    elif dataType == DataType.WIDERPERSON:
+        classes_path    = 'model_data/widerperson_classes.txt'   
+    elif dataType == DataType.MosquitoContainer:
+        classes_path    = 'model_data/MosquitoContainer_classes.txt'
+    elif dataType == DataType.AsianTraffic:
+        classes_path    = 'model_data/AsianTraffic_classes.txt'
     #-------------------------------------------------------#
     #   MINOVERLAP用於指定想要獲得的mAP0.x
     #   比如計算mAP0.75，可以設定MINOVERLAP = 0.75。
@@ -128,7 +151,7 @@ if __name__ == "__main__":
 
     if map_mode == 0 or map_mode == 1:
         print("Load model.")
-        model = Model(confidence = 0.001, nms_iou = 0.5)
+        model = Model(confidence = 0.001, nms_iou = 0.5, classes_path = classes_path)
         print("Load model done.")
 
         print("Get predict result.")
