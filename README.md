@@ -127,22 +127,35 @@ In addition, existing open data sets for object detection in ADAS applications u
 * **torchvision 0.4**
 
 ## Usage
-### 0. Prepare the dataset
-* **Download custom dataset in the  `data_paths`.** 
-* **And create custom dataset `custom_dataset.py` in the `dataset`.**
-* **Test dataset mark to video (need to change `custom_dataset` in code)**
+### 1. Prepare the dataset
+* **Create your own `dataset_annotation.py` then create `Detection/train.txt` , `Detection/val.txt` and `model_data/dataset_classes.txt` let data to load.** 
+* **Prepare pretrain download weight to `model_data/weight` .** 
+* **Add new data in `helps/choose_data.py`. **
+
+### 2. Create own model
+* **Copy `det_model` directory and write self required function, like `dataset_collate, Dataset, freeze_backbone, unfreeze_backbone ... etc`.** 
+* **Maintaion self directory like `nets, utils`. ** 
+* **Maintaion self detection configuration file like `model.py`. ** 
+* **Add new data in `helps/choose_model.py`. **
+
+### 3. Train (Freeze backbone + UnFreeze backbone) 
+* setup your `root_path` , choose `DataType` and switch detection model library import.
 ```python
-python videoTest.py 
+python train.py
 ```
 
-### 1. Train
+### 4. Evaluate  (get_map) 
+* setup your `root_path` , choose `DataType` and switch detection model library import.
+* setup your `model_path` and `classes_path` in `model/model.py`
 ```python
-python train.py --model Yolo_v4 --batch_size 4 --n_gpu 1
+python get_map.py
 ```
 
-### 2. Evaluate + Predict
+### 5. predict
+* Can switch **`predict mode` to detection image** or **`viedo` mode to detection video**
+* setup your `model_path` and `classes_path` in `model/model.py`
 ```python
-python predict.py --model Yolo_v4  --experiment_dir "run\AsiaTrafficDataset\Yolo_v4\experiment_10"
+python predict.py
 ```
 
 ## Reference
