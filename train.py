@@ -15,36 +15,9 @@ from retinanet.nets.retinanet import retinanet as Model
 from faster_rcnn.nets.frcnn import FasterRCNN as Model
 from centernet.nets.centernet import CenterNet_Resnet50 as Model
 
-class DataType:
-    VOC   = 0
-    LANE   = 1
-    BDD    = 2 
-    COCO   = 3
-    WIDERPERSON   = 4
-    MosquitoContainer = 5
-    AsianTraffic = 6
+from helps.choose_data import DataType, get_data
+from helps.choose_model import ModelType, check_model
 
-class ModelType:
-    YOLOV4   = 0
-    YOLOV3   = 1
-    SSD      = 2
-    RETINANET      = 3
-    FASTER_RCNN    = 4
-    CENTERNET      = 5
-
-def check_model(o):
-    str__ = str(o).split(".")[0].lower()
-    if "yolov4" in str__:  return ModelType.YOLOV4
-
-    elif "yolov3" in str__:  return ModelType.YOLOV3
-
-    elif "ssd" in str__:  return ModelType.SSD
-
-    elif "retinanet" in str__:  return ModelType.RETINANET
-
-    elif "faster_rcnn" in str__:  return ModelType.FASTER_RCNN
-
-    elif "centernet" in str__:  return ModelType.CENTERNET
 
 '''
 訓練自己的目標檢測模型一定需要注意以下幾點：
@@ -68,41 +41,18 @@ def check_model(o):
    這些都是經驗上，只能靠各位同學多查詢資料和自己試試了。
 '''  
 if __name__ == "__main__":   
-    #------------------------------#
-    dataType = DataType.LANE
+    #--------------------------------------------------------#
+    #   訓練前一定要修改classes_path，使其對應自己的數據集
+    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet"
+    data_path, classes_path = get_data(root_path, DataType.LANE)
+
     modelType = check_model(Model.__module__)
     #-------------------------------#
     #   是否使用Cuda
     #   沒有GPU可以設置成False
     #-------------------------------#
     Cuda = True
-    #--------------------------------------------------------#
-    #   訓練前一定要修改classes_path，使其對應自己的數據集
-    #--------------------------------------------------------#
-    if dataType == DataType.LANE:
-        data_path = "D://WorkSpace//JupyterWorkSpace//DataSet//LANEdevkit"
-        classes_path    = 'model_data/lane_classes.txt' 
-    elif dataType == DataType.BDD:
-        data_path = 'D://WorkSpace//JupyterWorkSpace//DataSet//bdd100k'    
-        classes_path    = 'model_data/bdd_classes.txt'    
-    elif dataType == DataType.VOC:
-        data_path = 'D://WorkSpace//JupyterWorkSpace//DataSet//VOCdevkit'    
-        classes_path    = 'model_data/voc_classes.txt'
-    elif dataType == DataType.COCO:
-        data_path = 'D://WorkSpace//JupyterWorkSpace//DataSet//COCO'    
-        classes_path    = 'model_data/coco_classes.txt'    
-    elif dataType == DataType.WIDERPERSON:
-        data_path = 'D://WorkSpace//JupyterWorkSpace//DataSet//WiderPerson'    
-        classes_path    = 'model_data/widerperson_classes.txt'   
-    elif dataType == DataType.MosquitoContainer:
-        data_path = 'D://WorkSpace//JupyterWorkSpace//DataSet//MosquitoContainer'    
-        classes_path    = 'model_data/MosquitoContainer_classes.txt'
-    elif dataType == DataType.AsianTraffic:
-        data_path = 'D://WorkSpace//JupyterWorkSpace//DataSet//Asian-Traffic'    
-        classes_path    = 'model_data/AsianTraffic_classes.txt'
-
-
-    
+    #-------------------------------#      
     if modelType == ModelType.YOLOV4: 
         from yolov4.nets.yolo_training import YOLOLoss, weights_init
         from yolov4.utils.callbacks import LossHistory

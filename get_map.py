@@ -11,39 +11,15 @@ from tqdm import tqdm
 # from retinanet.retinanet import Retinanet as Model
 from centernet.centernet import CenterNet as Model
 
-class DataType:
-    VOC   = 0
-    LANE   = 1
-    BDD    = 2 
-    COCO   = 3
-    WIDERPERSON   = 4
-    MosquitoContainer = 5
-    AsianTraffic = 6
-
-
-class ModelType:
-    YOLOV4   = 0
-    YOLOV3   = 1
-    SSD      = 2
-    RETINANET      = 3
-    FASTER_RCNN    = 4
-    CENTERNET      = 5
-
-def check_model(o):
-    str__ = str(o).split(".")[0].lower()
-    if "yolov4" in str__:  return ModelType.YOLOV4
-    elif "yolov3" in str__:  return ModelType.YOLOV3
-    elif "ssd" in str__:  return ModelType.SSD
-    elif "retinanet" in str__:  return ModelType.RETINANET
-    elif "faster_rcnn" in str__:  return ModelType.FASTER_RCNN
-    elif "centernet" in str__:  return ModelType.CENTERNET
+from helps.choose_model import ModelType, check_model
+from helps.choose_data import DataType, get_data
 
 from glob import glob
 
 if __name__ == "__main__":
     root_path = "D://WorkSpace//JupyterWorkSpace"
     #------------------------------#
-    dataType = DataType.LANE
+    _, classes_path = get_data(root_path, DataType.LANE)
     modelType = check_model(Model.__module__)
     #-------------------------------#
     if modelType == ModelType.YOLOV4: 
@@ -85,38 +61,7 @@ if __name__ == "__main__":
     #   map_mode為4代表利用COCO工具箱計算當前數據集的0.50:0.95map。需要獲得預測結果、獲得真實框後並安裝pycocotools才行
     #-------------------------------------------------------------------------------------------------------------------#
     map_mode        = 0
-    #-------------------------------------------------------#
-    #   此處的classes_path用於指定需要測量VOC_map的類別
-    #   一般情況下與訓練和預測所用的classes_path一致即可
-    #-------------------------------------------------------#
-    if dataType == DataType.LANE:
-        classes_path    = 'model_data/lane_classes.txt'
-        map_dict = {
-            "SA":"Straight Arrow",
-            "LA":"Left Arrow",
-            "RA":"Right Arrow",
-            "SLA":"Straight-Left Arrow",
-            "SRA":"Straight-Right Arrow",
-            "DM":"Diamond",
-            "PC":"Pedestrian Crossing",
-            "JB":"Junction Box",
-            "SL":"Slow",
-            "BL":"Bus Lane",
-            "CL":"Cycle Lane"
-        }
-    elif dataType == DataType.BDD:
-        classes_path    = 'model_data/bdd_classes.txt'    
-    elif dataType == DataType.VOC:
-        classes_path    = 'model_data/voc_classes.txt'
-    elif dataType == DataType.COCO:
-        classes_path    = 'model_data/coco_classes.txt'    
-    elif dataType == DataType.WIDERPERSON:
-        classes_path    = 'model_data/widerperson_classes.txt'   
-    elif dataType == DataType.MosquitoContainer:
-        classes_path    = 'model_data/MosquitoContainer_classes.txt'
-    elif dataType == DataType.AsianTraffic:
-        classes_path    = 'model_data/AsianTraffic_classes.txt'
-    #-------------------------------------------------------#
+    #-------------------------------------------------------#    
     #   MINOVERLAP用於指定想要獲得的mAP0.x
     #   比如計算mAP0.75，可以設定MINOVERLAP = 0.75。
     #-------------------------------------------------------#
