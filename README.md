@@ -133,7 +133,7 @@ In addition, existing open data sets for object detection in ADAS applications u
 * **Add new data in `helps/choose_data.py`. **
 
 ### 2. Create own model
-* **Copy `det_model` directory and write self required function, like `dataset_collate, Dataset, freeze_backbone, unfreeze_backbone ... etc`.** 
+* **Copy `det_model` directory and write self required function, like `dataset_collate, Dataset, freeze_backbone, unfreeze_backbone etc`.** 
 * **Maintaion self directory like `nets, utils`. ** 
 * **Maintaion self detection configuration file like `model.py`. ** 
 * **Add new data in `helps/choose_model.py`. **
