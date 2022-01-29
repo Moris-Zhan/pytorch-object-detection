@@ -183,3 +183,11 @@ class YoloBody(nn.Module):
 
         return out0, out1, out2
 
+    def freeze_backbone(self):
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
+    def unfreeze_backbone(self):
+        for param in self.backbone.parameters():
+            param.requires_grad = True
+

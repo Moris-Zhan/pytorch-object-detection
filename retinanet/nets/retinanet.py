@@ -256,3 +256,11 @@ class retinanet(nn.Module):
         anchors = self.anchors(features)
 
         return features, regression, classification, anchors
+    
+    def freeze_backbone(self):
+        for param in self.backbone_net.parameters():
+            param.requires_grad = False
+
+    def unfreeze_backbone(self):
+        for param in self.backbone_net.parameters():
+            param.requires_grad = True

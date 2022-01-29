@@ -106,7 +106,7 @@ class MobileNetV2(nn.Module):
 def mobilenet_v2(pretrained=False, progress=True, **kwargs):
     model = MobileNetV2(**kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url('https://download.pytorch.org/models/mobilenet_v2-b0353104.pth', model_dir="./ssd/weight",
+        state_dict = load_state_dict_from_url('https://download.pytorch.org/models/mobilenet_v2-b0353104.pth', model_dir="model_data/weight",
                                               progress=progress)
         model.load_state_dict(state_dict)
     del model.classifier

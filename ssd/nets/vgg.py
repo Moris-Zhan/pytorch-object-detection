@@ -39,7 +39,7 @@ def vgg(pretrained = False):
 
     model = nn.ModuleList(layers)
     if pretrained:
-        state_dict = load_state_dict_from_url("https://download.pytorch.org/models/vgg16-397923af.pth", model_dir="./ssd/weight")
+        state_dict = load_state_dict_from_url("https://download.pytorch.org/models/vgg16-397923af.pth", model_dir="model_data/weight")
         state_dict = {k.replace('features.', '') : v for k, v in state_dict.items()}
         model.load_state_dict(state_dict, strict = False)
     return model

@@ -87,3 +87,13 @@ class FasterRCNN(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
+
+    def freeze_backbone(self):
+        for param in self.extractor.parameters():
+            param.requires_grad = False
+
+    def unfreeze_backbone(self):
+        for param in self.extractor.parameters():
+            param.requires_grad = True
+
+    

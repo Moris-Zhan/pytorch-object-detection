@@ -117,7 +117,7 @@ if __name__ == "__main__":
     #   輸入的shape大小，一定要是32的倍數    
     #----------------------------------------------------------------------------------------------------------------------------#
     if modelType == ModelType.YOLOV4:
-        model_path      = 'yolov4/weight/yolo4_weights.pth' #coco
+        model_path      = 'model_data/weight/yolo4_weights.pth' #coco
         anchors_path    = 'yolov4/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [608, 608]  
@@ -125,7 +125,7 @@ if __name__ == "__main__":
         gamma           = 0.94
 
     elif modelType == ModelType.YOLOV3:
-        model_path      = 'yolov3/weight/yolo3_weights.pth' #coco
+        model_path      = 'model_data/weight/yolo3_weights.pth' #coco
         anchors_path    = 'yolov3/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [416, 416]  
@@ -133,28 +133,28 @@ if __name__ == "__main__":
         gamma           = 0.94
     
     elif modelType == ModelType.SSD:
-        model_path      = 'ssd/weight/ssd_weights.pth'
+        model_path      = 'model_data/weight/ssd_weights.pth'
         input_shape     = [300, 300]
         backbone        = "vgg"     #   vgg或者mobilenetv2
         weight_decay    = 5e-4
         gamma           = 0.94
 
     elif modelType == ModelType.RETINANET:
-        model_path      = 'retinanet/weight/retinanet_resnet50.pth'
+        model_path      = 'model_data/weight/retinanet_resnet50.pth'
         input_shape     = [600, 600]
         phi             = 2
         weight_decay    = 0
         gamma           = 0.96
 
     elif modelType == ModelType.FASTER_RCNN:
-        model_path      = 'faster_rcnn/weight/voc_weights_resnet.pth'
+        model_path      = 'model_data/weight/voc_weights_resnet.pth'
         input_shape     = [600, 600]
         backbone        = "resnet50"  #   vgg或者resnet50
         weight_decay    = 5e-4
         gamma           = 0.96
 
     elif modelType == ModelType.CENTERNET:
-        model_path      = 'centernet/weight/centernet_resnet50_voc.pth'
+        model_path      = 'model_data/weight/centernet_resnet50_voc.pth'
         input_shape     = [512, 512]
         backbone        = "resnet50"
         weight_decay    = 5e-4
@@ -392,28 +392,11 @@ if __name__ == "__main__":
         #------------------------------------#
         if Freeze_Train:
             loss_history.set_status(freeze=True)
+            model.freeze_backbone() 
 
-            if modelType in [ModelType.YOLOV4, ModelType.YOLOV3]:  
-                # Yolov3 / Yolov4
-                for param in model.backbone.parameters():
-                    param.requires_grad = False
-
-            elif modelType == ModelType.RETINANET:  
-                # Retinanet
-                for param in model.backbone_net.parameters():
-                    param.requires_grad = False
-
-            elif modelType in [ModelType.SSD, ModelType.CENTERNET]:  
-                # SSD / CenterNet
-                model.freeze_backbone()
-
-            elif modelType == ModelType.FASTER_RCNN:  
-                # FasterRCNN
-                for param in model.extractor.parameters():
-                    param.requires_grad = False
-                train_util      = FasterRCNNTrainer(model, optimizer)
-
-            
+            if modelType == ModelType.FASTER_RCNN:  
+                # FasterRCNN                
+                train_util      = FasterRCNNTrainer(model, optimizer)            
 
         for epoch in range(start_epoch, end_epoch):
             if modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
@@ -505,27 +488,10 @@ if __name__ == "__main__":
         #------------------------------------#
         if Freeze_Train:
             loss_history.set_status(freeze=False)
-            
-            if modelType in [ModelType.YOLOV4, ModelType.YOLOV3]:  
-                # Yolov3 / Yolov4
-                for param in model.backbone.parameters():
-                    param.requires_grad = True
-
-            elif modelType == ModelType.RETINANET:  
-                # Retinanet
-                for param in model.backbone_net.parameters():
-                    param.requires_grad = True
-
-            elif modelType in [ModelType.SSD, ModelType.CENTERNET]:  
-                # SSD / CenterNet
-                model.unfreeze_backbone()
-
-            elif modelType == ModelType.FASTER_RCNN:  
-                # FasterRCNN
-                for param in model.extractor.parameters():
-                    param.requires_grad = True
+            model.unfreeze_backbone()           
+ 
+            if modelType == ModelType.FASTER_RCNN:                
                 train_util      = FasterRCNNTrainer(model, optimizer)
-
             
 
         for epoch in range(start_epoch, end_epoch):

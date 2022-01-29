@@ -125,7 +125,7 @@ class ResNet(nn.Module):
 def resnet50(pretrained = True):
     model = ResNet(Bottleneck, [3, 4, 6, 3])
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls['resnet50'], model_dir = 'model_data/')
+        state_dict = load_state_dict_from_url(model_urls['resnet50'], model_dir = 'model_data/weight')
         model.load_state_dict(state_dict)
     #----------------------------------------------------------#
     #   获取特征提取部分
