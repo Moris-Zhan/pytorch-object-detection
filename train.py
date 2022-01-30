@@ -197,7 +197,7 @@ if __name__ == "__main__":
     #   占用的顯存較小，僅對網絡進行微調
     #----------------------------------------------------#
     Init_Epoch          = 0
-    Freeze_Epoch        = 50 #50
+    max_Freeze_Epoch    = 50 #50
     Freeze_batch_size   = int(8/4)
     Freeze_lr           = 1e-3
     #----------------------------------------------------#
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     #   此時模型的主幹不被凍結了，特征提取網絡會發生改變
     #   占用的顯存較大，網絡所有的參數都會發生改變
     #----------------------------------------------------#
-    End_UnFreeze_Epoch      = 100 #100
+    max_UnFreeze_Epoch  = 100 #100
     Unfreeze_batch_size = int(4/2)
     Unfreeze_lr         = 1e-4
     #------------------------------------------------------#
@@ -324,7 +324,7 @@ if __name__ == "__main__":
         batch_size  = Freeze_batch_size
         lr          = Freeze_lr
         start_epoch = Init_Epoch
-        end_epoch   = Freeze_Epoch
+        end_epoch   = max_Freeze_Epoch
                         
         epoch_step      = num_train // batch_size
         epoch_step_val  = num_val // batch_size
@@ -399,7 +399,7 @@ if __name__ == "__main__":
                 train_util      = FasterRCNNTrainer(model, optimizer)            
 
         for epoch in range(start_epoch, end_epoch):
-            Start_UnFreeze_Epoch = epoch + 1
+            next_UnFreeze_Epoch = epoch + 1
             if loss_history.earlyStop(): break
             if modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
                 # Yolov3 / Yolov4 / SSD / Retinanet
@@ -421,10 +421,10 @@ if __name__ == "__main__":
     if True:
         batch_size  = Unfreeze_batch_size
         lr          = Unfreeze_lr
-        # start_epoch = Freeze_Epoch
+        # start_epoch = max_Freeze_Epoch
         # end_epoch   = UnFreeze_Epoch
-        start_epoch = Start_UnFreeze_Epoch
-        end_epoch   = End_UnFreeze_Epoch
+        start_epoch = next_UnFreeze_Epoch
+        end_epoch   = max_UnFreeze_Epoch
                         
         epoch_step      = num_train // batch_size
         epoch_step_val  = num_val // batch_size
