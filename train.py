@@ -414,9 +414,8 @@ if __name__ == "__main__":
                 # CenterNet
                 fit_one_epoch(model_train, model, loss_history, optimizer, epoch, 
                         epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)
-
-
             lr_scheduler.step()
+        print("End of Freeze Training")
             
     if True:
         batch_size  = Unfreeze_batch_size
@@ -512,6 +511,6 @@ if __name__ == "__main__":
             elif modelType == ModelType.CENTERNET:  
                 # CenterNet
                 fit_one_epoch(model_train, model, loss_history, optimizer, epoch, 
-                        epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)
-            
+                        epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)            
             lr_scheduler.step()
+        print("End of UnFreeze Training")
