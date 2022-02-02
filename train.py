@@ -397,6 +397,7 @@ if __name__ == "__main__":
         if Freeze_Train:
             loss_history.set_status(freeze=True)
             model.freeze_backbone() 
+            loss_history.reset_stop()
 
             if modelType == ModelType.FASTER_RCNN:  
                 # FasterRCNN                
@@ -495,7 +496,8 @@ if __name__ == "__main__":
         #------------------------------------#
         if Freeze_Train:
             loss_history.set_status(freeze=False)
-            model.unfreeze_backbone()           
+            model.unfreeze_backbone()   
+            loss_history.reset_stop()        
  
         if modelType == ModelType.FASTER_RCNN:                
             train_util      = FasterRCNNTrainer(model, optimizer)            
