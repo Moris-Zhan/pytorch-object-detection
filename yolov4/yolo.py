@@ -27,7 +27,6 @@ class YOLO(object):
         #--------------------------------------------------------------------------#
         # "model_path"        : 'logs/Yolov4(mosaic)/ep050-loss0.686-val_loss1.606.pth', 
         "model_path"        : 'logs/Yolov4/ep050-loss0.330-val_loss2.213.pth', 
-        "classes_path"      : 'model_data/lane_classes.txt',
         #---------------------------------------------------------------------#
         #   anchors_path代表先验框对应的txt文件，一般不修改。
         #   anchors_mask用于帮助代码找到对应的先验框，一般不修改。
