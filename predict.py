@@ -7,17 +7,20 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
+from helps.choose_data import DataType, get_data
 
-# from yolov4.yolo import YOLO as Model
+from yolov4.yolo import YOLO as Model
 # from yolov3.yolo import YOLO as Model
 # from ssd.ssd import SSD as Model
 # from faster_rcnn.frcnn import FRCNN as Model
 # from retinanet.retinanet import Retinanet as Model
-from centernet.centernet import CenterNet as Model
+# from centernet.centernet import CenterNet as Model
 
 if __name__ == "__main__":
-    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet//LANEdevkit"
-    model = Model()
+    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet"
+    root_path, classes_path = get_data(root_path, DataType.LANE)
+
+    model = Model(classes_path=classes_path)
     #----------------------------------------------------------------------------------------------------------#
     #   mode用於指定測試的模式：
     #   'predict'表示單張圖片預測，如果想對預測過程進行修改，如保存圖片，截取對象等，可以先看下方詳細的注釋
@@ -88,6 +91,7 @@ if __name__ == "__main__":
         #     raise ValueError("未能正確讀取攝像頭（視頻），請注意是否正確安裝攝像頭（是否正確填寫視頻路徑）。")
 
         fps = 0.0
+        drawline = False
         while(True):
             t1 = time.time()
             # 讀取某一幀
@@ -99,13 +103,32 @@ if __name__ == "__main__":
             # 轉變成Image
             frame = Image.fromarray(np.uint8(frame))
             # 進行檢測
-            frame = np.array(model.detect_image(frame))
+            # frame = np.array(model.detect_image(frame))
+            frame = np.array(model.detect_image_custom_center(frame))
             # RGBtoBGR滿足opencv顯示格式
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2BGR)
             
             fps  = ( fps + (1./(time.time()-t1)) ) / 2
             print("fps= %.2f"%(fps))
             frame = cv2.putText(frame, "fps= %.2f"%(fps), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+            if drawline:
+                # Center coordinates 
+                center_coordinates = int(1280/2), int(720/3*2)
+                
+                # Radius of circle 
+                radius = 2
+                
+                # Blue color in BGR 
+                color = (0, 0, 255) 
+                
+                # Line thickness of 2 px 
+                thickness = 2
+                
+                # Draw a circle with blue line borders of thickness of 2 px 
+                frame = cv2.circle(frame, center_coordinates, radius, color, thickness) 
+                frame = cv2.line(frame, (int(1280/5*2),0), (int(1280/5*2),720), color, thickness)
+                frame = cv2.line(frame, (int(1280/6*4),0), (int(1280/6*4),720), color, thickness)
             
             cv2.imshow("video",frame)
             c= cv2.waitKey(1) & 0xff 

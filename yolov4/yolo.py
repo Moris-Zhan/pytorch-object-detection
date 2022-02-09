@@ -188,6 +188,114 @@ class YOLO(object):
 
         return image
 
+    #---------------------------------------------------#
+    #   检测图片
+    #---------------------------------------------------#
+    def detect_image_custom_center(self, image, min_x = int(1280/5*2), max_x = int(1280/6*4)):
+        # min_x = int(1280/5*2) 
+        # max_x = int(1280/6*4) 
+        #---------------------------------------------------#
+        #   计算输入图片的高和宽
+        #---------------------------------------------------#
+        image_shape = np.array(np.shape(image)[0:2])
+        #---------------------------------------------------------#
+        #   在这里将图像转换成RGB图像，防止灰度图在预测时报错。
+        #   代码仅仅支持RGB图像的预测，所有其它类型的图像都会转化成RGB
+        #---------------------------------------------------------#
+        image       = cvtColor(image)
+        #---------------------------------------------------------#
+        #   给图像增加灰条，实现不失真的resize
+        #   也可以直接resize进行识别
+        #---------------------------------------------------------#
+        image_data  = resize_image(image, (self.input_shape[1],self.input_shape[0]), self.letterbox_image)
+        #---------------------------------------------------------#
+        #   添加上batch_size维度
+        #---------------------------------------------------------#
+        image_data  = np.expand_dims(np.transpose(preprocess_input(np.array(image_data, dtype='float32')), (2, 0, 1)), 0)
+
+        with torch.no_grad():
+            images = torch.from_numpy(image_data)
+            if self.cuda:
+                images = images.cuda()
+            #---------------------------------------------------------#
+            #   将图像输入网络当中进行预测！
+            #---------------------------------------------------------#
+            outputs = self.net(images)
+            outputs = self.bbox_util.decode_box(outputs)
+            #---------------------------------------------------------#
+            #   将预测框进行堆叠，然后进行非极大抑制
+            #---------------------------------------------------------#
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), self.num_classes, self.input_shape, 
+                        image_shape, self.letterbox_image, conf_thres = self.confidence, nms_thres = self.nms_iou)
+                                                    
+            if results[0] is None: 
+                return image
+
+            top_label   = np.array(results[0][:, 6], dtype = 'int32')
+            top_conf    = results[0][:, 4] * results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+        #---------------------------------------------------------#
+        #   设置字体与边框厚度
+        #---------------------------------------------------------#
+        font        = ImageFont.truetype(font='model_data/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
+        thickness   = int(max((image.size[0] + image.size[1]) // np.mean(self.input_shape), 1))
+        
+        #---------------------------------------------------------#
+        #   图像绘制
+        #---------------------------------------------------------#
+        for i, c in list(enumerate(top_label)):
+            draw = ImageDraw.Draw(image)
+            predicted_class = self.class_names[int(c)]
+            
+            # flit classes
+            if int(c) in [5,8,9,10]: continue
+
+            box             = top_boxes[i]
+            score           = top_conf[i]
+
+            top, left, bottom, right = box
+
+            top     = max(0, np.floor(top).astype('int32'))
+            left    = max(0, np.floor(left).astype('int32'))
+            bottom  = min(image.size[1], np.floor(bottom).astype('int32'))
+            right   = min(image.size[0], np.floor(right).astype('int32'))
+
+            # filt box by near camera
+            c_x, c_y = int((left+right)/2), int((top+bottom)/2)
+            cent_x, cent_y = int(1280/2), int(720/3*2)                  
+                   
+            # dist= ((((cent_x - c_x )**2) + ((cent_y-c_y)**2) )**0.5)
+            dist= abs(cent_x - c_x )
+            dist_label = 'dist {:.2f}'.format(dist)
+            print(dist_label)
+            if c_x < min_x or c_x > max_x: continue
+            label = '{} {:.2f}'.format(predicted_class, score)            
+            
+            # label_size = draw.textsize(label, font)
+            label_size = draw.textsize(dist_label, font)
+            dist_label = dist_label.encode('utf-8')
+            label = label.encode('utf-8')
+            print(label, top, left, bottom, right)
+            
+            if top - label_size[1] >= 0:
+                text_origin = np.array([left, top - label_size[1]])
+            else:
+                text_origin = np.array([left, top + 1])
+
+            for i in range(thickness):
+                draw.rectangle([left + i, top + i, right - i, bottom - i], outline=self.colors[c])
+            # draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=self.colors[c])
+            draw.rectangle([tuple(text_origin - 40), tuple(text_origin + label_size)], fill=self.colors[c])
+            draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
+
+            text_up = text_origin
+            text_up[1] = text_origin[1]-40
+            draw.text(text_up, str(dist_label,'UTF-8'), fill=(0, 1, 0), font=font)
+
+            del draw
+
+        return image
+
     def get_FPS(self, image, test_interval):
         image_shape = np.array(np.shape(image)[0:2])
         #---------------------------------------------------------#

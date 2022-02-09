@@ -4,12 +4,12 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from tqdm import tqdm
 
-# from yolov4.yolo import YOLO as Model
+from yolov4.yolo import YOLO as Model
 # from yolov3.yolo import YOLO as Model
 # from ssd.ssd import SSD as Model
 # from faster_rcnn.frcnn import FRCNN as Model
 # from retinanet.retinanet import Retinanet as Model
-from centernet.centernet import CenterNet as Model
+# from centernet.centernet import CenterNet as Model
 
 from helps.choose_model import ModelType, check_model
 from helps.choose_data import DataType, get_data
@@ -17,9 +17,9 @@ from helps.choose_data import DataType, get_data
 from glob import glob
 
 if __name__ == "__main__":
-    root_path = "D://WorkSpace//JupyterWorkSpace"
+    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet"
     #------------------------------#
-    _, classes_path = get_data(root_path, DataType.LANE)
+    VOCdevkit_path, classes_path = get_data(root_path, DataType.LANE)
     modelType = check_model(Model.__module__)
     #-------------------------------#
     if modelType == ModelType.YOLOV4: 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #   指向VOC數據集所在的文件夾
     #   默認指向根目錄下的VOC數據集
     #-------------------------------------------------------#
-    VOCdevkit_path  = os.path.join(root_path, "DataSet/LANEdevkit")
+    # VOCdevkit_path  = os.path.join(root_path, "DataSet/LANEdevkit")
     #-------------------------------------------------------#
     #   結果輸出的文件夾，默認為map_out
     #-------------------------------------------------------#
