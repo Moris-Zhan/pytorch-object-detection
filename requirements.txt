@@ -10,8 +10,6 @@ protobuf==3.19.4
 pycocotools
 scikit_learn
 googledrivedownloader
-onnx
-onnxruntime
 
 tensorboardX==2.4.1
 PyYAML==6.0
@@ -24,3 +22,7 @@ torchvision==0.4
 
 tensorflow-gpu==2.2.0                     
 tensorboard==2.2.0                                 
+
+onnx
+onnxruntime
+netron
