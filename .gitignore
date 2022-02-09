@@ -5,3 +5,4 @@ map_out/
 pred_out/
 .idea/
 logs/
+onnx_model/

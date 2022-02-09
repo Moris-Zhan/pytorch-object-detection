@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision.ops import nms
 import numpy as np
+from yolov3.utils.metrics import bbox_iou
 
 class DecodeBox():
     def __init__(self, anchors, num_classes, input_shape, anchors_mask = [[6,7,8], [3,4,5], [0,1,2]]):
@@ -137,7 +138,7 @@ class DecodeBox():
         boxes *= np.concatenate([image_shape, image_shape], axis=-1)
         return boxes
 
-    def non_max_suppression(self, prediction, num_classes, input_shape, image_shape, letterbox_image, conf_thres=0.5, nms_thres=0.4):
+    def non_max_suppression(self, prediction, num_classes, input_shape, image_shape, letterbox_image, conf_thres=0.5, nms_thres=0.4, official = True):
         #----------------------------------------------------------#
         #   将预测结果的格式转换成左上角右下角的格式。
         #   prediction  [batch_size, num_anchors, 85]
@@ -195,27 +196,29 @@ class DecodeBox():
                 #------------------------------------------#
                 #   使用官方自带的非极大抑制会速度更快一些！
                 #------------------------------------------#
-                keep = nms(
-                    detections_class[:, :4],
-                    detections_class[:, 4] * detections_class[:, 5],
-                    nms_thres
-                )
-                max_detections = detections_class[keep]
-                
-                # # 按照存在物体的置信度排序
-                # _, conf_sort_index = torch.sort(detections_class[:, 4]*detections_class[:, 5], descending=True)
-                # detections_class = detections_class[conf_sort_index]
-                # # 进行非极大抑制
-                # max_detections = []
-                # while detections_class.size(0):
-                #     # 取出这一类置信度最高的，一步一步往下判断，判断重合程度是否大于nms_thres，如果是则去除掉
-                #     max_detections.append(detections_class[0].unsqueeze(0))
-                #     if len(detections_class) == 1:
-                #         break
-                #     ious = bbox_iou(max_detections[-1], detections_class[1:])
-                #     detections_class = detections_class[1:][ious < nms_thres]
-                # # 堆叠
-                # max_detections = torch.cat(max_detections).data
+                if official:
+                    keep = nms(
+                        detections_class[:, :4],
+                        detections_class[:, 4] * detections_class[:, 5],
+                        nms_thres
+                    )
+                    max_detections = detections_class[keep]
+                else:                
+                    # 按照存在物体的置信度排序
+                    _, conf_sort_index = torch.sort(detections_class[:, 4]*detections_class[:, 5], descending=True)
+                    detections_class = detections_class[conf_sort_index]
+                    # 进行非极大抑制
+                    max_detections = []
+                    while detections_class.size(0):
+                        # 取出这一类置信度最高的，一步一步往下判断，判断重合程度是否大于nms_thres，如果是则去除掉
+                        max_detections.append(detections_class[0].unsqueeze(0))
+                        # max_detections.append(detections_class[0])
+                        if len(detections_class) == 1:
+                            break
+                        ious = bbox_iou(max_detections[-1][0], detections_class[1:])
+                        detections_class = detections_class[1:][ious < nms_thres]
+                    # 堆叠
+                    max_detections = torch.cat(max_detections).data
                 
                 # Add max detections to outputs
                 output[i] = max_detections if output[i] is None else torch.cat((output[i], max_detections))
