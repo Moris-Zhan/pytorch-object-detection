@@ -126,6 +126,12 @@ In addition, existing open data sets for object detection in ADAS applications u
 * **numpy**
 * **torchvision 0.4**
 
+## Requirenents
+
+```python
+pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
+```
+
 ## Usage
 ### 1. Prepare the dataset
 * **Create your own `dataset_annotation.py` then create `Detection/train.txt` , `Detection/val.txt` and `model_data/dataset_classes.txt` let data to load.** 
