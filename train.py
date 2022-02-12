@@ -2,18 +2,18 @@
 #       對數據集進行訓練
 #-------------------------------------#
 import numpy as np
-from pytorch_lightning import os
+import os
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from yolov4.nets.yolo import YoloBody as Model
-from yolov3.nets.yolo import YoloBody as Model
-from ssd.nets.ssd import SSD300  as Model
-from retinanet.nets.retinanet import retinanet as Model
+# from yolov4.nets.yolo import YoloBody as Model
+# from yolov3.nets.yolo import YoloBody as Model
+# from ssd.nets.ssd import SSD300  as Model
+# from retinanet.nets.retinanet import retinanet as Model
 from faster_rcnn.nets.frcnn import FasterRCNN as Model
-from centernet.nets.centernet import CenterNet_Resnet50 as Model
+# from centernet.nets.centernet import CenterNet_Resnet50 as Model
 
 from helps.choose_data import DataType, get_data
 from helps.choose_model import ModelType, check_model

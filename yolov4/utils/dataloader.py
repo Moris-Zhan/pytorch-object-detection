@@ -1,4 +1,3 @@
-from copy import deepcopy
 from random import sample, shuffle, random
 
 import cv2
