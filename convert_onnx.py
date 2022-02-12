@@ -19,8 +19,6 @@ import onnx
 import onnxruntime as ort
 import numpy as np
 from torch.autograd import Variable
-import math
-
 from glob import glob
 
 if __name__ == "__main__":
