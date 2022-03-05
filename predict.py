@@ -9,9 +9,9 @@ import numpy as np
 from PIL import Image
 from helps.choose_data import DataType, get_data
 
-# from yolov4.yolo import YOLO as Model
+from yolov4.yolo import YOLO as Model
 # from yolov3.yolo import YOLO as Model
-from ssd.ssd import SSD as Model
+# from ssd.ssd import SSD as Model
 # from faster_rcnn.frcnn import FRCNN as Model
 # from retinanet.retinanet import Retinanet as Model
 # from centernet.centernet import CenterNet as Model

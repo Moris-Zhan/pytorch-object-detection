@@ -221,7 +221,7 @@ if __name__ == "__main__":
             f.write(graph)
 
         # Test forward with onnx session (test image) 
-        ort_session = ort.InferenceSession(onnx_model_path)        
+        ort_session = ort.InferenceSession(onnx_model_path, providers=['CUDAExecutionProvider'])     
         new_image       = cv2.resize(image, (300, 300), interpolation=cv2.INTER_CUBIC)
         new_image       = np.expand_dims(np.transpose(np.array(new_image, dtype=np.float32)/255, (2, 0, 1)),0)
         

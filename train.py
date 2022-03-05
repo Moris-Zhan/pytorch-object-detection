@@ -9,10 +9,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 # from yolov4.nets.yolo import YoloBody as Model
-# from yolov3.nets.yolo import YoloBody as Model
+from yolov3.nets.yolo import YoloBody as Model
 # from ssd.nets.ssd import SSD300  as Model
 # from retinanet.nets.retinanet import retinanet as Model
-from faster_rcnn.nets.frcnn import FasterRCNN as Model
+# from faster_rcnn.nets.frcnn import FasterRCNN as Model
 # from centernet.nets.centernet import CenterNet_Resnet50 as Model
 
 from helps.choose_data import DataType, get_data
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     if modelType == ModelType.YOLOV4: 
         from yolov4.nets.yolo_training import YOLOLoss, weights_init
         from yolov4.utils.callbacks import LossHistory
-        from yolov4.utils.dataloader import YoloDataset as Dataset , yolo_dataset_collate as dataset_collate
+        from yolov4.utils.dataloader import YoloDataset, yolo_dataset_collate
         from yolov4.utils.utils import get_anchors, get_classes
         from yolov4.utils.utils_fit import fit_one_epoch
 
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     #----------------------------------------------------#
     Init_Epoch          = 0
     max_Freeze_Epoch    = 50 #50
-    Freeze_batch_size   = int(8/4)
+    Freeze_batch_size   = int(8/2)
     Freeze_lr           = 1e-3
     #----------------------------------------------------#
     #   解凍階段訓練參數
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     #   占用的顯存較大，網絡所有的參數都會發生改變
     #----------------------------------------------------#
     max_UnFreeze_Epoch  = 100 #100
-    Unfreeze_batch_size = int(4/2)
+    Unfreeze_batch_size = int(4/1)
     Unfreeze_lr         = 1e-4
     #------------------------------------------------------#
     #   是否進行凍結訓練，默認先凍結主幹訓練後解凍訓練。
