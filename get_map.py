@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from tqdm import tqdm
 
+# from det_model.yolox.yolo import YOLO as Model
 from det_model.yolov5.yolo import YOLO as Model
 # from det_model.yolov4.yolo import YOLO as Model
 # from det_model.yolov3.yolo import YOLO as Model

@@ -6,6 +6,7 @@ class ModelType:
     RETINANET      = 4
     FASTER_RCNN    = 5
     CENTERNET      = 6
+    YOLOX    = 7
     
 
 def check_model(o):
@@ -17,3 +18,4 @@ def check_model(o):
     elif "retinanet" in str__:  return ModelType.RETINANET
     elif "faster_rcnn" in str__:  return ModelType.FASTER_RCNN
     elif "centernet" in str__:  return ModelType.CENTERNET
+    elif "yolox" in str__:  return ModelType.YOLOX

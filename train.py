@@ -9,6 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.nn as nn
 
+# from det_model.yolox.nets.yolo import YoloBody as Model
 from det_model.yolov5.nets.yolo import YoloBody as Model
 # from det_model.yolov4.nets.yolo import YoloBody as Model
 # from det_model.yolov3.nets.yolo import YoloBody as Model
@@ -55,6 +56,13 @@ if __name__ == "__main__":
     #-------------------------------#
     Cuda = True
     #-------------------------------#  
+    if modelType == ModelType.YOLOX:    
+        from det_model.yolox.nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr,
+                                weights_init)
+        from det_model.yolox.utils.callbacks import LossHistory
+        from det_model.yolox.utils.dataloader import YoloDataset, yolo_dataset_collate
+        from det_model.yolox.utils.utils import get_classes
+        from det_model.yolox.utils.utils_fit import fit_one_epoch
     if modelType == ModelType.YOLOV5:    
         from det_model.yolov5.nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr,
                                 weights_init)
@@ -125,8 +133,17 @@ if __name__ == "__main__":
 
     #   輸入的shape大小，一定要是32的倍數    
     #----------------------------------------------------------------------------------------------------------------------------#
-    if modelType == ModelType.YOLOV5:
-        phi             = 'm'
+    if modelType == ModelType.YOLOX:
+        phi             = 'm' # YoloX的版本。nano、tiny、s、m、l、x
+        model_path      = 'model_data/weight/yolox_%s.pth'%(phi) #coco
+        anchors_path    = 'det_model/yolox/yolo_anchors.txt'
+        input_shape     = [640, 640]  
+        weight_decay    = 5e-4
+        gamma           = 0.94
+        optimizer_type      = "sgd"
+        momentum            = 0.937
+    elif modelType == ModelType.YOLOV5:
+        phi             = 'm' # # YoloV5的版本。s、m、l、x
         model_path      = 'model_data/weight/yolov5_%s.pth'%(phi) #coco
         anchors_path    = 'det_model/yolov5/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
@@ -274,8 +291,12 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     #   創建模型
     #------------------------------------------------------#
-    if modelType in [ModelType.YOLOV5]:
-        # Yolov3 / Yolov4
+    if modelType == ModelType.YOLOX:
+        # YoloX
+        model = Model(num_classes, phi)
+        weights_init(model)
+    elif modelType == ModelType.YOLOV5:
+        # Yolov5
         model = Model(anchors_mask, num_classes, phi)
         weights_init(model)
 
@@ -326,11 +347,15 @@ if __name__ == "__main__":
     
     loss_history = LossHistory(model_train)
 
-    if modelType == ModelType.YOLOV5:
+    if modelType == ModelType.YOLOX:
+        # YoloX
+        criterion    = YOLOLoss(num_classes)
+
+    elif modelType == ModelType.YOLOV5:
         # Yolov5
         criterion    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
 
-    if modelType == ModelType.YOLOV4:
+    elif modelType == ModelType.YOLOV4:
         # Yolov4
         criterion    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
 
@@ -389,7 +414,7 @@ if __name__ == "__main__":
             loss_history.reset_stop() 
             lr          = Unfreeze_lr
         #-------------------------------------------------------------------#
-        if modelType == ModelType.YOLOV5:
+        if modelType in [ModelType.YOLOX, ModelType.YOLOV5]:
             #-------------------------------------------------------------------#
             #   判断当前batch_size与64的差别，自适应调整学习率
             #-------------------------------------------------------------------#
@@ -425,7 +450,7 @@ if __name__ == "__main__":
             else:
                 lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma = gamma)
         #-------------------------------------------------------------------#
-        if modelType == ModelType.YOLOV5:
+        if modelType in [ModelType.YOLOX, ModelType.YOLOV5]:
             mosaic              = True
             train_dataset   = YoloDataset(train_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=mosaic, train = True)
             val_dataset     = YoloDataset(val_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=False, train = False)   
@@ -514,7 +539,7 @@ if __name__ == "__main__":
                 loss_history.reset_stop() 
 
                 if modelType == ModelType.FASTER_RCNN: train_util      = FasterRCNNTrainer(model, optimizer) 
-                if modelType == ModelType.YOLOV5: 
+                if modelType in [ModelType.YOLOX, ModelType.YOLOV5]: 
                     #-------------------------------------------------------------------#
                     #   判断当前batch_size与64的差别，自适应调整学习率
                     #-------------------------------------------------------------------#
@@ -530,7 +555,7 @@ if __name__ == "__main__":
             # only early stop when UnFreeze Training
             if (UnFreeze_flag and Early_Stopping and loss_history.stopping): break
 
-            if modelType == ModelType.YOLOV5: 
+            if modelType in [ModelType.YOLOX, ModelType.YOLOV5]: 
                 set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
                 fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
 
@@ -549,6 +574,6 @@ if __name__ == "__main__":
                 fit_one_epoch(model_train, model, loss_history, optimizer, epoch, 
                         epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)      
 
-            if modelType != ModelType.YOLOV5:       lr_scheduler.step()
+            if modelType not in [ModelType.YOLOX, ModelType.YOLOV5]:       lr_scheduler.step()
 
         print("End of UnFreeze Training")
