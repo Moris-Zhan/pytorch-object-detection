@@ -130,7 +130,7 @@ if __name__ == "__main__":
         model_path      = 'model_data/weight/yolov5_%s.pth'%(phi) #coco
         anchors_path    = 'det_model/yolov5/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
-        input_shape     = [608, 608]  
+        input_shape     = [640, 640]  
         weight_decay    = 5e-4
         gamma           = 0.94
         optimizer_type      = "sgd"

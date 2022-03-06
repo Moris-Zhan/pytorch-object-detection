@@ -1,12 +1,43 @@
-from random import sample, shuffle
+from random import sample, shuffle, random
 
 import cv2
 import numpy as np
 from PIL import Image
 from torch.utils.data.dataset import Dataset
-
+import torch
 from det_model.yolov5.utils.utils import cvtColor, preprocess_input
+from det_model.yolov5.utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_perspective
 
+def clip_coords(boxes, shape):
+    # Clip bounding xyxy bounding boxes to image shape (height, width)
+    if isinstance(boxes, torch.Tensor):  # faster individually
+        boxes[:, 0].clamp_(0, shape[1])  # x1
+        boxes[:, 1].clamp_(0, shape[0])  # y1
+        boxes[:, 2].clamp_(0, shape[1])  # x2
+        boxes[:, 3].clamp_(0, shape[0])  # y2
+    else:  # np.array (faster grouped)
+        boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, shape[1])  # x1, x2
+        boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
+
+def xyxy2xywhn(x, w=640, h=640, clip=False, eps=0.0):
+    # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] normalized where xy1=top-left, xy2=bottom-right
+    if clip:
+        clip_coords(x, (h - eps, w - eps))  # warning: inplace clip
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = ((x[:, 0] + x[:, 2]) / 2) / w  # x center
+    y[:, 1] = ((x[:, 1] + x[:, 3]) / 2) / h  # y center
+    y[:, 2] = (x[:, 2] - x[:, 0]) / w  # width
+    y[:, 3] = (x[:, 3] - x[:, 1]) / h  # height
+    return y
+
+def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
+    # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = w * (x[:, 0] - x[:, 2] / 2) + padw  # top left x
+    y[:, 1] = h * (x[:, 1] - x[:, 3] / 2) + padh  # top left y
+    y[:, 2] = w * (x[:, 0] + x[:, 2] / 2) + padw  # bottom right x
+    y[:, 3] = h * (x[:, 1] + x[:, 3] / 2) + padh  # bottom right y
+    return y
 
 class YoloDataset(Dataset):
     def __init__(self, annotation_lines, input_shape, num_classes, epoch_length, mosaic, train, mosaic_ratio = 0.7):
@@ -21,6 +52,7 @@ class YoloDataset(Dataset):
 
         self.epoch_now          = -1
         self.length             = len(self.annotation_lines)
+        self.albumentations = Albumentations(self.input_shape, self.train) 
 
     def __len__(self):
         return self.length
@@ -34,141 +66,52 @@ class YoloDataset(Dataset):
         #---------------------------------------------------#
         if self.mosaic:
             if self.rand() < 0.5 and self.epoch_now < self.epoch_length * self.mosaic_ratio:
-                lines = sample(self.annotation_lines, 3)
-                lines.append(self.annotation_lines[index])
-                shuffle(lines)
-                image, box  = self.get_random_data_with_Mosaic(lines, self.input_shape)
+                new_image, new_boxes = self.get_random_data_with_Mosaic(index)              
             else:
-                image, box  = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
-        else:
-            image, box      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
-        image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
-        box         = np.array(box, dtype=np.float32)
-        if len(box) != 0:
-            box[:, [0, 2]] = box[:, [0, 2]] / self.input_shape[1]
-            box[:, [1, 3]] = box[:, [1, 3]] / self.input_shape[0]
+                new_image, new_boxes = self.get_random_data(index)   
+        else:                
+            new_image, new_boxes = self.get_random_data(index)  
+        new_image       = np.transpose(preprocess_input(np.array(new_image, dtype=np.float32)), (2, 0, 1))
+        new_boxes[:, :-1] = xyxy2xywhn(new_boxes[:, :-1], w=self.input_shape[1], h=self.input_shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
 
-            box[:, 2:4] = box[:, 2:4] - box[:, 0:2]
-            box[:, 0:2] = box[:, 0:2] + box[:, 2:4] / 2
-        return image, box
+        return new_image, new_boxes  
 
     def rand(self, a=0, b=1):
         return np.random.rand()*(b-a) + a
 
-    def get_random_data(self, annotation_line, input_shape, jitter=.3, hue=.1, sat=0.7, val=0.4, random=True):
-        line    = annotation_line.split()
-        #------------------------------#
-        #   读取图像并转换成RGB图像
-        #------------------------------#
-        image   = Image.open(line[0])
-        image   = cvtColor(image)
-        #------------------------------#
-        #   获得图像的高宽与目标高宽
-        #------------------------------#
-        iw, ih  = image.size
-        h, w    = input_shape
-        #------------------------------#
-        #   获得预测框
-        #------------------------------#
-        box     = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
+    def get_random_data(self, index):
+        annotation_line = self.annotation_lines[index]
+        image = annotation_line.split()[0]
+        image = cv2.imread(image)
+        new_anno     = np.array([np.array(list(map(int,b.split(','))),dtype=np.float32) for b in annotation_line.split()[1:]])     
 
-        if not random:
-            scale = min(w/iw, h/ih)
-            nw = int(iw*scale)
-            nh = int(ih*scale)
-            dx = (w-nw)//2
-            dy = (h-nh)//2
-
-            #---------------------------------#
-            #   将图像多余的部分加上灰条
-            #---------------------------------#
-            image       = image.resize((nw,nh), Image.BICUBIC)
-            new_image   = Image.new('RGB', (w,h), (128,128,128))
-            new_image.paste(image, (dx, dy))
-            image_data  = np.array(new_image, np.float32)
-
-            #---------------------------------#
-            #   对真实框进行调整
-            #---------------------------------#
-            if len(box)>0:
-                np.random.shuffle(box)
-                box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
-                box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
-                box[:, 0:2][box[:, 0:2]<0] = 0
-                box[:, 2][box[:, 2]>w] = w
-                box[:, 3][box[:, 3]>h] = h
-                box_w = box[:, 2] - box[:, 0]
-                box_h = box[:, 3] - box[:, 1]
-                box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
-
-            return image_data, box
-                
-        #------------------------------------------#
-        #   对图像进行缩放并且进行长和宽的扭曲
-        #------------------------------------------#
-        new_ar = iw/ih * self.rand(1-jitter,1+jitter) / self.rand(1-jitter,1+jitter)
-        scale = self.rand(.25, 2)
-        if new_ar < 1:
-            nh = int(scale*h)
-            nw = int(nh*new_ar)
-        else:
-            nw = int(scale*w)
-            nh = int(nw/new_ar)
-        image = image.resize((nw,nh), Image.BICUBIC)
-
-        #------------------------------------------#
-        #   将图像多余的部分加上灰条
-        #------------------------------------------#
-        dx = int(self.rand(0, w-nw))
-        dy = int(self.rand(0, h-nh))
-        new_image = Image.new('RGB', (w,h), (128,128,128))
-        new_image.paste(image, (dx, dy))
-        image = new_image
-
-        #------------------------------------------#
-        #   翻转图像
-        #------------------------------------------#
-        flip = self.rand()<.5
-        if flip: image = image.transpose(Image.FLIP_LEFT_RIGHT)
-
-        image_data      = np.array(image, np.uint8)
-        #---------------------------------#
-        #   对图像进行色域变换
-        #   计算色域变换的参数
-        #---------------------------------#
-        r               = np.random.uniform(-1, 1, 3) * [hue, sat, val] + 1
-        #---------------------------------#
-        #   将图像转到HSV上
-        #---------------------------------#
-        hue, sat, val   = cv2.split(cv2.cvtColor(image_data, cv2.COLOR_RGB2HSV))
-        dtype           = image_data.dtype
-        #---------------------------------#
-        #   应用变换
-        #---------------------------------#
-        x       = np.arange(0, 256, dtype=r.dtype)
-        lut_hue = ((x * r[0]) % 180).astype(dtype)
-        lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
-        lut_val = np.clip(x * r[2], 0, 255).astype(dtype)
-
-        image_data = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
-        image_data = cv2.cvtColor(image_data, cv2.COLOR_HSV2RGB)
-
-        #---------------------------------#
-        #   对真实框进行调整
-        #---------------------------------#
-        if len(box)>0:
-            np.random.shuffle(box)
-            box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
-            box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
-            if flip: box[:, [0,2]] = w - box[:, [2,0]]
-            box[:, 0:2][box[:, 0:2]<0] = 0
-            box[:, 2][box[:, 2]>w] = w
-            box[:, 3][box[:, 3]>h] = h
-            box_w = box[:, 2] - box[:, 0]
-            box_h = box[:, 3] - box[:, 1]
-            box = box[np.logical_and(box_w>1, box_h>1)] 
+        # orign view
+        for idx in range(len(new_anno)):
+            b = new_anno[idx, :-1]         
+            # cv2.rectangle(image, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (255,255,0), 2) # 邊框
+        # cv2.imshow("image", image)
+        # cv2.waitKey(0)   
         
-        return image_data, box
+        # xywh trans view
+        new_anno[:, :-1] = xyxy2xywhn(new_anno[:, :-1], w=image.shape[1], h=image.shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
+        box3 = xywhn2xyxy(new_anno[:, :-1],w=image.shape[1], h=image.shape[0], padw=0, padh=0)
+        h, w , _ = image.shape
+
+        for idx in range(len(box3)):
+            b = box3[idx, :]               
+        #     cv2.rectangle(image, (b[0], b[1]), (  b[2], b[3]  ), (255,255,0), 2) # 邊框
+        # cv2.imshow("image", image)
+        # cv2.waitKey(0)        
+
+        # Albumentations
+        image, new_anno = self.albumentations(image, new_anno)
+        new_anno[:, :-1] = xywhn2xyxy(new_anno[:, :-1],w=w, h=h, padw=0, padh=0)
+        for idx in range(len(new_anno)):
+            b = new_anno[idx, :-1]                  
+        #     cv2.rectangle(image, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (255,255,0), 2) # 邊框
+        # cv2.imshow("image", image)
+        # cv2.waitKey(0) 
+        return image, new_anno      
     
     def merge_bboxes(self, bboxes, cutx, cuty):
         merge_bbox = []
@@ -216,136 +159,102 @@ class YoloDataset(Dataset):
                 merge_bbox.append(tmp_box)
         return merge_bbox
 
-    def get_random_data_with_Mosaic(self, annotation_line, input_shape, jitter=0.3, hue=.1, sat=0.7, val=0.4):
-        h, w = input_shape
-        min_offset_x = self.rand(0.3, 0.7)
-        min_offset_y = self.rand(0.3, 0.7)
+    def get_random_data_with_Mosaic(self, index):
+        lines = sample(self.annotation_lines, 3)
+        lines.append(self.annotation_lines[index])
+        shuffle(lines)
+        scale_range = (0.3, 0.7)
+        output_size = self.input_shape
 
-        image_datas = [] 
-        box_datas   = []
-        index       = 0
-        for line in annotation_line:
-            #---------------------------------#
-            #   每一行进行分割
-            #---------------------------------#
-            line_content = line.split()
-            #---------------------------------#
-            #   打开图片
-            #---------------------------------#
-            image = Image.open(line_content[0])
-            image = cvtColor(image)
-            
-            #---------------------------------#
-            #   图片的大小
-            #---------------------------------#
-            iw, ih = image.size
-            #---------------------------------#
-            #   保存框的位置
-            #---------------------------------#
-            box = np.array([np.array(list(map(int,box.split(',')))) for box in line_content[1:]])
-            
-            #---------------------------------#
-            #   是否翻转图片
-            #---------------------------------#
-            flip = self.rand()<.5
-            if flip and len(box)>0:
-                image = image.transpose(Image.FLIP_LEFT_RIGHT)
-                box[:, [0,2]] = iw - box[:, [2,0]]
+        output_img = np.zeros([output_size[0], output_size[1], 3], dtype=np.uint8)
+        scale_x = scale_range[0] + random() * (scale_range[1] - scale_range[0])
+        scale_y = scale_range[0] + random() * (scale_range[1] - scale_range[0])
+        divid_point_x = int(scale_x * output_size[1])
+        divid_point_y = int(scale_y * output_size[0])
 
-            #------------------------------------------#
-            #   对图像进行缩放并且进行长和宽的扭曲
-            #------------------------------------------#
-            new_ar = iw/ih * self.rand(1-jitter,1+jitter) / self.rand(1-jitter,1+jitter)
-            scale = self.rand(.4, 1)
-            if new_ar < 1:
-                nh = int(scale*h)
-                nw = int(nh*new_ar)
-            else:
-                nw = int(scale*w)
-                nh = int(nw/new_ar)
-            image = image.resize((nw, nh), Image.BICUBIC)
+        new_anno = []
+        for i, annotation_line in enumerate(lines):
+            path = annotation_line.split(" ")[0]
+            all_annos = annotation_line.split(" ")[1:]
+            img_annos     = np.array([np.array(list(map(int,b.split(','))),dtype=np.float32) for b in all_annos])   
 
-            #-----------------------------------------------#
-            #   将图片进行放置，分别对应四张分割图片的位置
-            #-----------------------------------------------#
-            if index == 0:
-                dx = int(w*min_offset_x) - nw
-                dy = int(h*min_offset_y) - nh
-            elif index == 1:
-                dx = int(w*min_offset_x) - nw
-                dy = int(h*min_offset_y)
-            elif index == 2:
-                dx = int(w*min_offset_x)
-                dy = int(h*min_offset_y)
-            elif index == 3:
-                dx = int(w*min_offset_x)
-                dy = int(h*min_offset_y) - nh
-            
-            new_image = Image.new('RGB', (w,h), (128,128,128))
-            new_image.paste(image, (dx, dy))
-            image_data = np.array(new_image)
+            img = cv2.imread(path)
+            h, w, _ = img.shape
 
-            index = index + 1
-            box_data = []
-            #---------------------------------#
-            #   对box进行重新处理
-            #---------------------------------#
-            if len(box)>0:
-                np.random.shuffle(box)
-                box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
-                box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
-                box[:, 0:2][box[:, 0:2]<0] = 0
-                box[:, 2][box[:, 2]>w] = w
-                box[:, 3][box[:, 3]>h] = h
-                box_w = box[:, 2] - box[:, 0]
-                box_h = box[:, 3] - box[:, 1]
-                box = box[np.logical_and(box_w>1, box_h>1)]
-                box_data = np.zeros((len(box),5))
-                box_data[:len(box)] = box
-            
-            image_datas.append(image_data)
-            box_datas.append(box_data)
+            if i == 0:  # top-left                
+                mosaic_albumentations = Albumentations((divid_point_y, divid_point_x), True) 
+                img_annos[:, :-1] = xyxy2xywhn(img_annos[:, :-1], w=w, h=h, clip=True, eps=1E-3) # target is [x,y,w,h]
+                img, img_annos = mosaic_albumentations(img, img_annos)
+                img_annos[:, :-1] = xywhn2xyxy(img_annos[:, :-1],w=w, h=h, padw=0, padh=0)
 
-        #---------------------------------#
-        #   将图片分割，放在一起
-        #---------------------------------#
-        cutx = int(w * min_offset_x)
-        cuty = int(h * min_offset_y)
+                output_img[:divid_point_y, :divid_point_x, :] = img
+                for bbox in img_annos:         
+                    xmin = bbox[0]
+                    ymin = bbox[1]
+                    xmax = bbox[2]
+                    ymax = bbox[3]           
+                    new_anno.append([xmin, ymin, xmax, ymax, bbox[4]])
+                #     cv2.rectangle(output_img, (int(xmin), int(ymin)), ( int(xmax), int(ymax)  ), (255,255,0), 2) # 邊框
+                # cv2.imshow("output_img", output_img)
+                # cv2.waitKey(0)
+            elif i == 1:  # top-right
+                mosaic_albumentations = Albumentations((divid_point_y, output_size[1] - divid_point_x), True) 
+                img_annos[:, :-1] = xyxy2xywhn(img_annos[:, :-1], w=w, h=h, clip=True, eps=1E-3) # target is [x,y,w,h]
+                img, img_annos = mosaic_albumentations(img, img_annos)
+                img_annos[:, :-1] = xywhn2xyxy(img_annos[:, :-1],w=w, h=h, padw=0, padh=0)
 
-        new_image = np.zeros([h, w, 3])
-        new_image[:cuty, :cutx, :] = image_datas[0][:cuty, :cutx, :]
-        new_image[cuty:, :cutx, :] = image_datas[1][cuty:, :cutx, :]
-        new_image[cuty:, cutx:, :] = image_datas[2][cuty:, cutx:, :]
-        new_image[:cuty, cutx:, :] = image_datas[3][:cuty, cutx:, :]
+                output_img[:divid_point_y, divid_point_x:output_size[1], :] = img
+                for bbox in img_annos:            
+                    xmin = bbox[0] + divid_point_x
+                    ymin = bbox[1]
+                    xmax = bbox[2] + divid_point_x
+                    ymax = bbox[3]
+                    new_anno.append([xmin, ymin, xmax, ymax, bbox[4]])
+                #     cv2.rectangle(output_img, (int(xmin), int(ymin)), ( int(xmax), int(ymax)  ), (255,255,0), 2) # 邊框
+                # cv2.imshow("output_img", output_img)
+                # cv2.waitKey(0)
+            elif i == 2:  # bottom-left
+                mosaic_albumentations = Albumentations((output_size[0] - divid_point_y, divid_point_x), True) 
+                img_annos[:, :-1] = xyxy2xywhn(img_annos[:, :-1], w=w, h=h, clip=True, eps=1E-3) # target is [x,y,w,h]
+                img, img_annos = mosaic_albumentations(img, img_annos)
+                img_annos[:, :-1] = xywhn2xyxy(img_annos[:, :-1],w=w, h=h, padw=0, padh=0)
 
-        new_image       = np.array(new_image, np.uint8)
-        #---------------------------------#
-        #   对图像进行色域变换
-        #   计算色域变换的参数
-        #---------------------------------#
-        r               = np.random.uniform(-1, 1, 3) * [hue, sat, val] + 1
-        #---------------------------------#
-        #   将图像转到HSV上
-        #---------------------------------#
-        hue, sat, val   = cv2.split(cv2.cvtColor(new_image, cv2.COLOR_RGB2HSV))
-        dtype           = new_image.dtype
-        #---------------------------------#
-        #   应用变换
-        #---------------------------------#
-        x       = np.arange(0, 256, dtype=r.dtype)
-        lut_hue = ((x * r[0]) % 180).astype(dtype)
-        lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
-        lut_val = np.clip(x * r[2], 0, 255).astype(dtype)
+                output_img[divid_point_y:output_size[0], :divid_point_x, :] = img
+                for bbox in img_annos:          
+                    xmin = bbox[0]
+                    ymin = bbox[1] + divid_point_y
+                    xmax = bbox[2]
+                    ymax = bbox[3] + divid_point_y
+                    new_anno.append([xmin, ymin, xmax, ymax, bbox[4]])
+                #     cv2.rectangle(output_img, (int(xmin), int(ymin)), ( int(xmax), int(ymax)  ), (255,255,0), 2) # 邊框
+                # cv2.imshow("output_img", output_img)
+                # cv2.waitKey(0)
+            else:  # bottom-right
+                mosaic_albumentations = Albumentations((output_size[0] - divid_point_y, output_size[1] - divid_point_x), True) 
+                img_annos[:, :-1] = xyxy2xywhn(img_annos[:, :-1], w=w, h=h, clip=True, eps=1E-3) # target is [x,y,w,h]
+                img, img_annos = mosaic_albumentations(img, img_annos)
+                img_annos[:, :-1] = xywhn2xyxy(img_annos[:, :-1],w=w, h=h, padw=0, padh=0)
 
-        new_image = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
-        new_image = cv2.cvtColor(new_image, cv2.COLOR_HSV2RGB)
+                # img = cv2.resize(img, (output_size[1] - divid_point_x, output_size[0] - divid_point_y))
+                output_img[divid_point_y:output_size[0], divid_point_x:output_size[1], :] = img
+                for bbox in img_annos:        
+                    xmin = bbox[0] + divid_point_x
+                    ymin = bbox[1] + divid_point_y
+                    xmax = bbox[2] + divid_point_x
+                    ymax = bbox[3] + divid_point_y
 
-        #---------------------------------#
-        #   对框进行进一步的处理
-        #---------------------------------#
-        new_boxes = self.merge_bboxes(box_datas, cutx, cuty)
+                    new_anno.append([xmin, ymin, xmax, ymax, bbox[4]])
+                #     cv2.rectangle(output_img, (int(xmin), int(ymin)), ( int(xmax), int(ymax)  ), (255,255,0), 2) # 邊框
+                # cv2.imshow("output_img", output_img)
+                # cv2.waitKey(0)
+        
+        # filter_scale = 1 / 100 
+        # if 0 < filter_scale:
+        #     new_anno = [anno for anno in new_anno if
+        #             filter_scale < (anno[3] - anno[1]) and filter_scale < (anno[4] - anno[2])]
 
-        return new_image, new_boxes
+        new_anno = np.array(new_anno)
+        return output_img, new_anno  
 
 # DataLoader中collate_fn使用
 def yolo_dataset_collate(batch):
