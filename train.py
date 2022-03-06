@@ -8,12 +8,12 @@ import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-# from yolov4.nets.yolo import YoloBody as Model
-from yolov3.nets.yolo import YoloBody as Model
-# from ssd.nets.ssd import SSD300  as Model
-# from retinanet.nets.retinanet import retinanet as Model
-# from faster_rcnn.nets.frcnn import FasterRCNN as Model
-# from centernet.nets.centernet import CenterNet_Resnet50 as Model
+# from det_model.yolov4.nets.yolo import YoloBody as Model
+# from det_model.yolov3.nets.yolo import YoloBody as Model
+# from det_model.ssd.nets.ssd import SSD300  as Model
+from det_model.retinanet.nets.retinanet import retinanet as Model
+# from det_model.faster_rcnn.nets.frcnn import FasterRCNN as Model
+# from det_model.centernet.nets.centernet import CenterNet_Resnet50 as Model
 
 from helps.choose_data import DataType, get_data
 from helps.choose_model import ModelType, check_model
@@ -54,46 +54,46 @@ if __name__ == "__main__":
     Cuda = True
     #-------------------------------#      
     if modelType == ModelType.YOLOV4: 
-        from yolov4.nets.yolo_training import YOLOLoss, weights_init
-        from yolov4.utils.callbacks import LossHistory
-        from yolov4.utils.dataloader import YoloDataset, yolo_dataset_collate
-        from yolov4.utils.utils import get_anchors, get_classes
-        from yolov4.utils.utils_fit import fit_one_epoch
+        from det_model.yolov4.nets.yolo_training import YOLOLoss, weights_init
+        from det_model.yolov4.utils.callbacks import LossHistory
+        from det_model.yolov4.utils.dataloader import YoloDataset, yolo_dataset_collate
+        from det_model.yolov4.utils.utils import get_anchors, get_classes
+        from det_model.yolov4.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.YOLOV3: 
-        from yolov3.nets.yolo_training import YOLOLoss, weights_init
-        from yolov3.utils.callbacks import LossHistory
-        from yolov3.utils.dataloader import YoloDataset, yolo_dataset_collate
-        from yolov3.utils.utils import get_anchors, get_classes
-        from yolov3.utils.utils_fit import fit_one_epoch
+        from det_model.yolov3.nets.yolo_training import YOLOLoss, weights_init
+        from det_model.yolov3.utils.callbacks import LossHistory
+        from det_model.yolov3.utils.dataloader import YoloDataset, yolo_dataset_collate
+        from det_model.yolov3.utils.utils import get_anchors, get_classes
+        from det_model.yolov3.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.SSD: 
-        from ssd.nets.ssd_training import MultiboxLoss, weights_init
-        from ssd.utils.anchors import get_anchors
-        from ssd.utils.callbacks import LossHistory
-        from ssd.utils.dataloader import SSDDataset, ssd_dataset_collate
-        from ssd.utils.utils import get_classes
-        from ssd.utils.utils_fit import fit_one_epoch
+        from det_model.ssd.nets.ssd_training import MultiboxLoss, weights_init
+        from det_model.ssd.utils.anchors import get_anchors
+        from det_model.ssd.utils.callbacks import LossHistory
+        from det_model.ssd.utils.dataloader import SSDDataset, ssd_dataset_collate
+        from det_model.ssd.utils.utils import get_classes
+        from det_model.ssd.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.RETINANET: 
-        from retinanet.nets.retinanet_training import FocalLoss
-        from retinanet.utils.callbacks import LossHistory
-        from retinanet.utils.dataloader import RetinanetDataset, retinanet_dataset_collate
-        from retinanet.utils.utils import get_classes
-        from retinanet.utils.utils_fit import fit_one_epoch
+        from det_model.retinanet.nets.retinanet_training import FocalLoss
+        from det_model.retinanet.utils.callbacks import LossHistory
+        from det_model.retinanet.utils.dataloader import RetinanetDataset, retinanet_dataset_collate
+        from det_model.retinanet.utils.utils import get_classes
+        from det_model.retinanet.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.FASTER_RCNN: 
-        from faster_rcnn.nets.frcnn_training import FasterRCNNTrainer, weights_init
-        from faster_rcnn.utils.callbacks import LossHistory
-        from faster_rcnn.utils.dataloader import FRCNNDataset, frcnn_dataset_collate
-        from faster_rcnn.utils.utils import get_classes
-        from faster_rcnn.utils.utils_fit import fit_one_epoch
+        from det_model.faster_rcnn.nets.frcnn_training import FasterRCNNTrainer, weights_init
+        from det_model.faster_rcnn.utils.callbacks import LossHistory
+        from det_model.faster_rcnn.utils.dataloader import FRCNNDataset, frcnn_dataset_collate
+        from det_model.faster_rcnn.utils.utils import get_classes
+        from det_model.faster_rcnn.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.CENTERNET: 
-        from centernet.utils.callbacks import LossHistory
-        from centernet.utils.dataloader import CenternetDataset, centernet_dataset_collate
-        from centernet.utils.utils import get_classes
-        from centernet.utils.utils_fit import fit_one_epoch
+        from det_model.centernet.utils.callbacks import LossHistory
+        from det_model.centernet.utils.dataloader import CenternetDataset, centernet_dataset_collate
+        from det_model.centernet.utils.utils import get_classes
+        from det_model.centernet.utils.utils_fit import fit_one_epoch
     #----------------------------------------------------------------------------------------------------------------------------#
     #   權值文件的下載請看README，可以通過網盤下載。模型的 預訓練權重 對不同數據集是通用的，因為特征是通用的。
     #   模型的 預訓練權重 比較重要的部分是 主幹特征提取網絡的權值部分，用於進行特征提取。
@@ -197,7 +197,7 @@ if __name__ == "__main__":
     #   占用的顯存較小，僅對網絡進行微調
     #----------------------------------------------------#
     Init_Epoch          = 0
-    max_Freeze_Epoch    = 50 #50
+    Freeze_Epoch    = 50 #50
     Freeze_batch_size   = int(8/2)
     Freeze_lr           = 1e-3
     #----------------------------------------------------#
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     #   此時模型的主幹不被凍結了，特征提取網絡會發生改變
     #   占用的顯存較大，網絡所有的參數都會發生改變
     #----------------------------------------------------#
-    max_UnFreeze_Epoch  = 100 #100
+    UnFreeze_Epoch  = 100 #100
     Unfreeze_batch_size = int(4/1)
     Unfreeze_lr         = 1e-4
     #------------------------------------------------------#
@@ -325,192 +325,128 @@ if __name__ == "__main__":
     #   提示OOM或者顯存不足請調小Batch_size
     #------------------------------------------------------#
     if True:
-        batch_size  = Freeze_batch_size
-        lr          = Freeze_lr
-        start_epoch = Init_Epoch
-        end_epoch   = max_Freeze_Epoch
-                        
-        epoch_step      = num_train // batch_size
-        epoch_step_val  = num_val // batch_size
-        
-        if epoch_step == 0 or epoch_step_val == 0:
-            raise ValueError("數據集過小，無法進行訓練，請擴充數據集。")
-        
-        optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = 5e-4)
-        if Cosine_lr:
-            lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
-        else:
-            lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.94)
+        UnFreeze_flag = False
+        # UnFreeze_Epoch      = 100
+        # Freeze_Epoch        = 50
+        #-------------------------------------------------------------------#
+        #   如果不冻结训练的话，直接设置batch_size为Unfreeze_batch_size
+        #-------------------------------------------------------------------#
+        batch_size = Freeze_batch_size if Freeze_Train else Unfreeze_batch_size
+        end_epoch = Freeze_Epoch if Freeze_Train else UnFreeze_Epoch
 
-        if modelType == ModelType.YOLOV4:    
-            # Yolov4
-            train_dataset   = YoloDataset(train_lines, input_shape, num_classes, mosaic=mosaic, train = True)
-            val_dataset     = YoloDataset(val_lines, input_shape, num_classes, mosaic=False, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
-        elif modelType == ModelType.YOLOV3:  
-            # Yolov3
-            train_dataset   = YoloDataset(train_lines, input_shape, num_classes, train = True)
-            val_dataset     = YoloDataset(val_lines, input_shape, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
-        elif modelType == ModelType.SSD:  
-            # SSD
-            train_dataset   = SSDDataset(train_lines, input_shape, anchors, batch_size, num_classes, train = True)
-            val_dataset     = SSDDataset(val_lines, input_shape, anchors, batch_size, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=ssd_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=ssd_dataset_collate)
-        elif modelType == ModelType.RETINANET: 
-            # Retinanet
-            train_dataset   = RetinanetDataset(train_lines, input_shape, num_classes, train = True)
-            val_dataset     = RetinanetDataset(val_lines, input_shape, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=retinanet_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=retinanet_dataset_collate)
-        elif modelType == ModelType.FASTER_RCNN: 
-            # FasterRCNN
-            train_dataset   = FRCNNDataset(train_lines, input_shape, train = True)
-            val_dataset     = FRCNNDataset(val_lines, input_shape, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=frcnn_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=frcnn_dataset_collate)
-        elif modelType == ModelType.CENTERNET: 
-            # CenterNet
-            train_dataset   = CenternetDataset(train_lines, input_shape, num_classes, train = True)
-            val_dataset     = CenternetDataset(val_lines, input_shape, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=centernet_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=centernet_dataset_collate)
-
-        #------------------------------------#
-        #   凍結一定部分訓練
-        #------------------------------------#
         if Freeze_Train:
+            #------------------------------------#
+            #   凍結一定部分訓練
+            #------------------------------------#
             loss_history.set_status(freeze=True)
             model.freeze_backbone() 
             loss_history.reset_stop()
-
-            if modelType == ModelType.FASTER_RCNN:  
-                # FasterRCNN                
-                train_util      = FasterRCNNTrainer(model, optimizer)            
-
-        for epoch in range(start_epoch, end_epoch):
-            next_UnFreeze_Epoch = epoch + 1
-            # if (Early_Stopping and loss_history.stopping): break
-            if modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
-                # Yolov3 / Yolov4 / SSD / Retinanet
-                fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, 
-                        epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
-
-            elif modelType == ModelType.FASTER_RCNN:  
-                # FasterRCNN
-                fit_one_epoch(model, train_util, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
-
-            elif modelType == ModelType.CENTERNET:  
-                # CenterNet
-                fit_one_epoch(model_train, model, loss_history, optimizer, epoch, 
-                        epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)
-            lr_scheduler.step()
-        print("End of Freeze Training")
-            
-    if True:
-        batch_size  = Unfreeze_batch_size
-        lr          = Unfreeze_lr
-        # start_epoch = max_Freeze_Epoch
-        # end_epoch   = UnFreeze_Epoch
-        start_epoch = next_UnFreeze_Epoch
-        end_epoch   = max_UnFreeze_Epoch
-                        
-        epoch_step      = num_train // batch_size
-        epoch_step_val  = num_val // batch_size
-        
-        if epoch_step == 0 or epoch_step_val == 0:
-            raise ValueError("數據集過小，無法進行訓練，請擴充數據集。")
-        
+            lr          = Freeze_lr
+        else:
+            #------------------------------------#
+            #   解凍後訓練
+            #------------------------------------#
+            loss_history.set_status(freeze=False)
+            model.unfreeze_backbone()   
+            loss_history.reset_stop() 
+            lr          = Unfreeze_lr
+        #-------------------------------------------------------------------#
         optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = weight_decay)
         if Cosine_lr:
             lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
         else:
             lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma = gamma)
+        #-------------------------------------------------------------------#
 
         if modelType == ModelType.YOLOV4:    
             # Yolov4
             train_dataset   = YoloDataset(train_lines, input_shape, num_classes, mosaic=mosaic, train = True)
             val_dataset     = YoloDataset(val_lines, input_shape, num_classes, mosaic=False, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
+            dataset_collate = yolo_dataset_collate
+        
         elif modelType == ModelType.YOLOV3:  
             # Yolov3
             train_dataset   = YoloDataset(train_lines, input_shape, num_classes, train = True)
             val_dataset     = YoloDataset(val_lines, input_shape, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=yolo_dataset_collate)
+            dataset_collate = yolo_dataset_collate
         elif modelType == ModelType.SSD:  
             # SSD
             train_dataset   = SSDDataset(train_lines, input_shape, anchors, batch_size, num_classes, train = True)
             val_dataset     = SSDDataset(val_lines, input_shape, anchors, batch_size, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=ssd_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=ssd_dataset_collate)
+            dataset_collate = ssd_dataset_collate
+        
         elif modelType == ModelType.RETINANET: 
             # Retinanet
             train_dataset   = RetinanetDataset(train_lines, input_shape, num_classes, train = True)
             val_dataset     = RetinanetDataset(val_lines, input_shape, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=retinanet_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=retinanet_dataset_collate)
+            dataset_collate = retinanet_dataset_collate
+            
         elif modelType == ModelType.FASTER_RCNN: 
             # FasterRCNN
             train_dataset   = FRCNNDataset(train_lines, input_shape, train = True)
             val_dataset     = FRCNNDataset(val_lines, input_shape, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=frcnn_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=frcnn_dataset_collate)
+            train_util      = FasterRCNNTrainer(model, optimizer) 
+            dataset_collate = frcnn_dataset_collate
+            
         elif modelType == ModelType.CENTERNET: 
             # CenterNet
             train_dataset   = CenternetDataset(train_lines, input_shape, num_classes, train = True)
             val_dataset     = CenternetDataset(val_lines, input_shape, num_classes, train = False)
-            gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
-                                        drop_last=True, collate_fn=centernet_dataset_collate)
-            gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
-                                        drop_last=True, collate_fn=centernet_dataset_collate)
+            dataset_collate = centernet_dataset_collate   
 
-        #------------------------------------#
-        #   解凍後訓練
-        #------------------------------------#
-        if Freeze_Train:
-            loss_history.set_status(freeze=False)
-            model.unfreeze_backbone()   
-            loss_history.reset_stop()        
- 
-        if modelType == ModelType.FASTER_RCNN:                
-            train_util      = FasterRCNNTrainer(model, optimizer)            
+        gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
+                                        drop_last=True, collate_fn=dataset_collate)
+        gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
+                                    drop_last=True, collate_fn=dataset_collate)   
+        epoch_step      = num_train // batch_size
+        epoch_step_val  = num_val // batch_size
 
-        for epoch in range(start_epoch, end_epoch):
-            if (Early_Stopping and loss_history.stopping): break
+        if epoch_step == 0 or epoch_step_val == 0:
+            raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
+        #---------------------------------------#
+        #   开始模型训练
+        #---------------------------------------#
+        for epoch in range(Init_Epoch, UnFreeze_Epoch):
+            #---------------------------------------#
+            #   如果模型有冻结学习部分
+            #   则解冻，并设置参数
+            #---------------------------------------#
+            if epoch >= Freeze_Epoch and not UnFreeze_flag and Freeze_Train:                            
+
+                epoch_step      = num_train // batch_size
+                epoch_step_val  = num_val // batch_size
+
+                if epoch_step == 0 or epoch_step_val == 0:
+                    raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")                   
+                #-----------------------------------------------------------------------------------------#
+                print("End of Freeze Training")
+                UnFreeze_flag = True
+                #-----------------------------------------------------------------------------------------#
+                batch_size = Unfreeze_batch_size   
+                end_epoch = UnFreeze_Epoch
+                lr          = Unfreeze_lr
+                optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = weight_decay)
+                if Cosine_lr:
+                    lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
+                else:
+                    lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma = gamma)
+                
+                loss_history.set_status(freeze=False)
+                model.unfreeze_backbone()   
+                loss_history.reset_stop() 
+                if modelType == ModelType.FASTER_RCNN: train_util      = FasterRCNNTrainer(model, optimizer) 
+                #-----------------------------------------------------------------------------------------#
+                
+            # only early stop when UnFreeze Training
+            if (UnFreeze_flag and Early_Stopping and loss_history.stopping): break
+            
             if modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
                 # Yolov3 / Yolov4 / SSD / Retinanet
                 fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, 
                         epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
 
             elif modelType == ModelType.FASTER_RCNN:  
-                # FasterRCNN
+                # FasterRCNN                
                 fit_one_epoch(model, train_util, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
 
             elif modelType == ModelType.CENTERNET:  
@@ -518,4 +454,5 @@ if __name__ == "__main__":
                 fit_one_epoch(model_train, model, loss_history, optimizer, epoch, 
                         epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)            
             lr_scheduler.step()
+
         print("End of UnFreeze Training")

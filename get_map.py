@@ -4,12 +4,12 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from tqdm import tqdm
 
-from yolov4.yolo import YOLO as Model
-# from yolov3.yolo import YOLO as Model
-# from ssd.ssd import SSD as Model
-# from faster_rcnn.frcnn import FRCNN as Model
-# from retinanet.retinanet import Retinanet as Model
-# from centernet.centernet import CenterNet as Model
+from det_model.yolov4.yolo import YOLO as Model
+# from det_model.yolov3.yolo import YOLO as Model
+# from det_model.ssd.ssd import SSD as Model
+# from det_model.faster_rcnn.frcnn import FRCNN as Model
+# from det_model.retinanet.retinanet import Retinanet as Model
+# from det_model.centernet.centernet import CenterNet as Model
 
 from helps.choose_model import ModelType, check_model
 from helps.choose_data import DataType, get_data
@@ -23,28 +23,28 @@ if __name__ == "__main__":
     modelType = check_model(Model.__module__)
     #-------------------------------#
     if modelType == ModelType.YOLOV4: 
-        from yolov4.utils.utils import get_classes
-        from yolov4.utils.utils_map import get_coco_map, get_map
+        from det_model.yolov4.utils.utils import get_classes
+        from det_model.yolov4.utils.utils_map import get_coco_map, get_map
 
     elif modelType == ModelType.YOLOV3: 
-        from yolov3.utils.utils import get_classes
-        from yolov3.utils.utils_map import get_coco_map, get_map
+        from det_model.yolov3.utils.utils import get_classes
+        from det_model.yolov3.utils.utils_map import get_coco_map, get_map
 
     elif modelType == ModelType.SSD: 
-        from ssd.utils.utils import get_classes
-        from ssd.utils.utils_map import get_coco_map, get_map
+        from det_model.ssd.utils.utils import get_classes
+        from det_model.ssd.utils.utils_map import get_coco_map, get_map
 
     elif modelType == ModelType.RETINANET: 
-        from retinanet.utils.utils import get_classes
-        from retinanet.utils.utils_map import get_coco_map, get_map
+        from det_model.retinanet.utils.utils import get_classes
+        from det_model.retinanet.utils.utils_map import get_coco_map, get_map
 
     elif modelType == ModelType.FASTER_RCNN: 
-        from faster_rcnn.utils.utils import get_classes
-        from faster_rcnn.utils.utils_map import get_coco_map, get_map
+        from det_model.faster_rcnn.utils.utils import get_classes
+        from det_model.faster_rcnn.utils.utils_map import get_coco_map, get_map
 
     elif modelType == ModelType.CENTERNET: 
-        from centernet.utils.utils import get_classes
-        from centernet.utils.utils_map import get_coco_map, get_map
+        from det_model.centernet.utils.utils import get_classes
+        from det_model.centernet.utils.utils_map import get_coco_map, get_map
     '''
     Recall和Precision不像AP是一個面積的概念，在門限值不同時，網絡的Recall和Precision值是不同的。
     map計算結果中的Recall和Precision代表的是當預測時，門限置信度為0.5時，所對應的Recall和Precision值。

@@ -6,8 +6,8 @@ from pytorch_lightning import os
 import torch
 from torch.utils.data import DataLoader
 
-from yolov4.utils.dataloader import YoloDataset as Dataset , yolo_dataset_collate as dataset_collate
-from yolov4.utils.utils import get_classes
+from det_model.yolov4.utils.dataloader import YoloDataset as Dataset , yolo_dataset_collate as dataset_collate
+from det_model.yolov4.utils.utils import get_classes
 
 from tqdm import tqdm
 

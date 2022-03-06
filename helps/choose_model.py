@@ -8,7 +8,7 @@ class ModelType:
     
 
 def check_model(o):
-    str__ = str(o).split(".")[0].lower()
+    str__ = str(o).split(".")[1].lower()
     if "yolov4" in str__:  return ModelType.YOLOV4
     elif "yolov3" in str__:  return ModelType.YOLOV3
     elif "ssd" in str__:  return ModelType.SSD

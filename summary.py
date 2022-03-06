@@ -4,7 +4,7 @@
 import torch
 from torchsummary import summary
 
-from yolov4.nets.yolo import YoloBody
+from det_model.yolov4.nets.yolo import YoloBody
 
 if __name__ == "__main__":
     # 需要使用device来指定网络在GPU还是CPU运行
