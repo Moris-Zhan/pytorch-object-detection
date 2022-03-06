@@ -111,6 +111,7 @@ In addition, existing open data sets for object detection in ADAS applications u
 ## Methods
 - YOLOv3
 - YOLOv4
+- YOLOv5
 - SSD
 - RetinaNet
 - CenterNet
@@ -167,6 +168,7 @@ python predict.py
 ## Reference
 - PyTorch-YOLOv3 : https://github.com/bubbliiiing/yolo3-pytorch
 - PyTorch_YOLOv4 : https://github.com/bubbliiiing/yolov4-pytorch
+- PyTorch_YOLOv5 : https://github.com/bubbliiiing/yolov5-pytorch
 - SSD: https://github.com/bubbliiiing/ssd-pytorch
 - RetinaNet: https://github.com/bubbliiiing/retinanet-pytorch
 - CenterNet: https://github.com/bubbliiiing/centernet-pytorch
