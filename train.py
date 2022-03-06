@@ -7,11 +7,13 @@ import torch
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import torch.nn as nn
 
+from det_model.yolov5.nets.yolo import YoloBody as Model
 # from det_model.yolov4.nets.yolo import YoloBody as Model
 # from det_model.yolov3.nets.yolo import YoloBody as Model
 # from det_model.ssd.nets.ssd import SSD300  as Model
-from det_model.retinanet.nets.retinanet import retinanet as Model
+# from det_model.retinanet.nets.retinanet import retinanet as Model
 # from det_model.faster_rcnn.nets.frcnn import FasterRCNN as Model
 # from det_model.centernet.nets.centernet import CenterNet_Resnet50 as Model
 
@@ -52,8 +54,15 @@ if __name__ == "__main__":
     #   沒有GPU可以設置成False
     #-------------------------------#
     Cuda = True
-    #-------------------------------#      
-    if modelType == ModelType.YOLOV4: 
+    #-------------------------------#  
+    if modelType == ModelType.YOLOV5:    
+        from det_model.yolov5.nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr,
+                                weights_init)
+        from det_model.yolov5.utils.callbacks import LossHistory
+        from det_model.yolov5.utils.dataloader import YoloDataset, yolo_dataset_collate
+        from det_model.yolov5.utils.utils import get_anchors, get_classes
+        from det_model.yolov5.utils.utils_fit import fit_one_epoch 
+    elif modelType == ModelType.YOLOV4: 
         from det_model.yolov4.nets.yolo_training import YOLOLoss, weights_init
         from det_model.yolov4.utils.callbacks import LossHistory
         from det_model.yolov4.utils.dataloader import YoloDataset, yolo_dataset_collate
@@ -116,9 +125,19 @@ if __name__ == "__main__":
 
     #   輸入的shape大小，一定要是32的倍數    
     #----------------------------------------------------------------------------------------------------------------------------#
-    if modelType == ModelType.YOLOV4:
+    if modelType == ModelType.YOLOV5:
+        phi             = 'l'
+        model_path      = 'model_data/weight/yolov5_%s.pth'%(phi) #coco
+        anchors_path    = 'det_model/yolov5/yolo_anchors.txt'
+        anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+        input_shape     = [608, 608]  
+        weight_decay    = 5e-4
+        gamma           = 0.94
+        optimizer_type      = "sgd"
+        momentum            = 0.937
+    elif modelType == ModelType.YOLOV4:
         model_path      = 'model_data/weight/yolo4_weights.pth' #coco
-        anchors_path    = 'yolov4/yolo_anchors.txt'
+        anchors_path    = 'det_model/yolov4/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [608, 608]  
         weight_decay    = 5e-4
@@ -126,7 +145,7 @@ if __name__ == "__main__":
 
     elif modelType == ModelType.YOLOV3:
         model_path      = 'model_data/weight/yolo3_weights.pth' #coco
-        anchors_path    = 'yolov3/yolo_anchors.txt'
+        anchors_path    = 'det_model/yolov3/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [416, 416]  
         weight_decay    = 5e-4
@@ -182,8 +201,7 @@ if __name__ == "__main__":
     #   Cosine_lr 余弦退火學習率 True or False
     #   label_smoothing 標簽平滑 0.01以下一般 如0.01、0.005
     #------------------------------------------------------#
-    mosaic              = False
-    # mosaic              = True
+    mosaic              = False    
     Cosine_lr           = False
     label_smoothing     = 0
     #----------------------------------------------------#
@@ -212,6 +230,19 @@ if __name__ == "__main__":
     #   是否進行凍結訓練，默認先凍結主幹訓練後解凍訓練。
     #------------------------------------------------------#
     Freeze_Train        = True
+    #------------------------------------------------------------------#
+    #   其它训练参数：学习率、优化器、学习率下降有关
+    #------------------------------------------------------------------#
+    #------------------------------------------------------------------#
+    #   Init_lr         模型的最大学习率
+    #   Min_lr          模型的最小学习率，默认为最大学习率的0.01
+    #------------------------------------------------------------------#
+    Init_lr             = 1e-2
+    Min_lr              = Init_lr * 0.01
+    #------------------------------------------------------------------#
+    #   lr_decay_type   使用到的学习率下降方式，可选的有step、cos
+    #------------------------------------------------------------------#
+    lr_decay_type       = "cos"
     #------------------------------------------------------#
     #   是否提早結束。
     #------------------------------------------------------#
@@ -232,7 +263,7 @@ if __name__ == "__main__":
     #----------------------------------------------------#
     class_names, num_classes = get_classes(classes_path)
 
-    if modelType in [ModelType.YOLOV4, ModelType.YOLOV3]:
+    if modelType in [ModelType.YOLOV5, ModelType.YOLOV4, ModelType.YOLOV3]:
         # Yolov3 / Yolov4
         anchors, num_anchors     = get_anchors(anchors_path)
     elif modelType == ModelType.SSD:
@@ -243,7 +274,12 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     #   創建模型
     #------------------------------------------------------#
-    if modelType in [ModelType.YOLOV4, ModelType.YOLOV3]:
+    if modelType in [ModelType.YOLOV5]:
+        # Yolov3 / Yolov4
+        model = Model(anchors_mask, num_classes, phi)
+        weights_init(model)
+
+    elif modelType in [ModelType.YOLOV4, ModelType.YOLOV3]:
         # Yolov3 / Yolov4
         model = Model(anchors_mask, num_classes)
         weights_init(model)
@@ -290,6 +326,10 @@ if __name__ == "__main__":
     
     loss_history = LossHistory(model_train)
 
+    if modelType == ModelType.YOLOV5:
+        # Yolov5
+        criterion    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
+
     if modelType == ModelType.YOLOV4:
         # Yolov4
         criterion    = YOLOLoss(anchors, num_classes, input_shape, Cuda, anchors_mask, label_smoothing)
@@ -326,8 +366,6 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     if True:
         UnFreeze_flag = False
-        # UnFreeze_Epoch      = 100
-        # Freeze_Epoch        = 50
         #-------------------------------------------------------------------#
         #   如果不冻结训练的话，直接设置batch_size为Unfreeze_batch_size
         #-------------------------------------------------------------------#
@@ -351,14 +389,49 @@ if __name__ == "__main__":
             loss_history.reset_stop() 
             lr          = Unfreeze_lr
         #-------------------------------------------------------------------#
-        optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = weight_decay)
-        if Cosine_lr:
-            lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
-        else:
-            lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma = gamma)
-        #-------------------------------------------------------------------#
+        if modelType == ModelType.YOLOV5:
+            #-------------------------------------------------------------------#
+            #   判断当前batch_size与64的差别，自适应调整学习率
+            #-------------------------------------------------------------------#
+            nbs         = 64
+            Init_lr_fit = max(batch_size / nbs * Init_lr, 1e-4)
+            Min_lr_fit  = max(batch_size / nbs * Min_lr, 1e-6)
+            #---------------------------------------#
+            #   根据optimizer_type选择优化器
+            #---------------------------------------#
+            pg0, pg1, pg2 = [], [], []  
+            for k, v in model.named_modules():
+                if hasattr(v, "bias") and isinstance(v.bias, nn.Parameter):
+                    pg2.append(v.bias)    
+                if isinstance(v, nn.BatchNorm2d) or "bn" in k:
+                    pg0.append(v.weight)    
+                elif hasattr(v, "weight") and isinstance(v.weight, nn.Parameter):
+                    pg1.append(v.weight)   
+            optimizer = {
+                'adam'  : optim.Adam(pg0, Init_lr_fit, betas = (momentum, 0.999)),
+                'sgd'   : optim.SGD(pg0, Init_lr_fit, momentum = momentum, nesterov=True)
+            }[optimizer_type]
+            optimizer.add_param_group({"params": pg1, "weight_decay": weight_decay})
+            optimizer.add_param_group({"params": pg2})
+            #---------------------------------------#
+            #   获得学习率下降的公式
+            #---------------------------------------#
+            lr_scheduler_func = get_lr_scheduler(lr_decay_type, Init_lr_fit, Min_lr_fit, UnFreeze_Epoch)
 
-        if modelType == ModelType.YOLOV4:    
+        else:
+            optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = weight_decay)
+            if Cosine_lr:
+                lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
+            else:
+                lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma = gamma)
+        #-------------------------------------------------------------------#
+        if modelType == ModelType.YOLOV5:
+            mosaic              = True
+            train_dataset   = YoloDataset(train_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=mosaic, train = True)
+            val_dataset     = YoloDataset(val_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=False, train = False)   
+            dataset_collate = yolo_dataset_collate     
+
+        elif modelType == ModelType.YOLOV4:    
             # Yolov4
             train_dataset   = YoloDataset(train_lines, input_shape, num_classes, mosaic=mosaic, train = True)
             val_dataset     = YoloDataset(val_lines, input_shape, num_classes, mosaic=False, train = False)
@@ -412,19 +485,24 @@ if __name__ == "__main__":
             #   则解冻，并设置参数
             #---------------------------------------#
             if epoch >= Freeze_Epoch and not UnFreeze_flag and Freeze_Train:                            
-
                 epoch_step      = num_train // batch_size
                 epoch_step_val  = num_val // batch_size
 
                 if epoch_step == 0 or epoch_step_val == 0:
-                    raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")                   
+                    raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")  
                 #-----------------------------------------------------------------------------------------#
                 print("End of Freeze Training")
                 UnFreeze_flag = True
                 #-----------------------------------------------------------------------------------------#
                 batch_size = Unfreeze_batch_size   
                 end_epoch = UnFreeze_Epoch
-                lr          = Unfreeze_lr
+                lr        = Unfreeze_lr
+                #-----------------------------------------------------------------------------------------#
+                gen             = DataLoader(train_dataset, shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True,
+                                        drop_last=True, collate_fn=dataset_collate)
+                gen_val         = DataLoader(val_dataset  , shuffle = True, batch_size = batch_size, num_workers = num_workers, pin_memory=True, 
+                                            drop_last=True, collate_fn=dataset_collate) 
+                #-----------------------------------------------------------------------------------------#                
                 optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = weight_decay)
                 if Cosine_lr:
                     lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
@@ -434,13 +512,30 @@ if __name__ == "__main__":
                 loss_history.set_status(freeze=False)
                 model.unfreeze_backbone()   
                 loss_history.reset_stop() 
+
                 if modelType == ModelType.FASTER_RCNN: train_util      = FasterRCNNTrainer(model, optimizer) 
-                #-----------------------------------------------------------------------------------------#
+                if modelType == ModelType.YOLOV5: 
+                    #-------------------------------------------------------------------#
+                    #   判断当前batch_size与64的差别，自适应调整学习率
+                    #-------------------------------------------------------------------#
+                    nbs         = 64
+                    Init_lr_fit = max(batch_size / nbs * Init_lr, 1e-4)
+                    Min_lr_fit  = max(batch_size / nbs * Min_lr, 1e-6)
+                    #---------------------------------------#
+                    #   获得学习率下降的公式
+                    #---------------------------------------#
+                    lr_scheduler_func = get_lr_scheduler(lr_decay_type, Init_lr_fit, Min_lr_fit, UnFreeze_Epoch)
+                    #-----------------------------------------------------------------------------------------#
                 
             # only early stop when UnFreeze Training
             if (UnFreeze_flag and Early_Stopping and loss_history.stopping): break
+
+            if modelType == ModelType.YOLOV5: 
+                set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
+                fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
+
             
-            if modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
+            elif modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
                 # Yolov3 / Yolov4 / SSD / Retinanet
                 fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, 
                         epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)

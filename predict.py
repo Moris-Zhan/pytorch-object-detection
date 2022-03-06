@@ -9,7 +9,8 @@ import numpy as np
 from PIL import Image
 from helps.choose_data import DataType, get_data
 
-from det_model.yolov4.yolo import YOLO as Model
+from det_model.yolov5.yolo import YOLO as Model
+# from det_model.yolov4.yolo import YOLO as Model
 # from det_model.yolov3.yolo import YOLO as Model
 # from det_model.ssd.ssd import SSD as Model
 # from det_model.faster_rcnn.frcnn import FRCNN as Model

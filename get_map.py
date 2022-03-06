@@ -4,7 +4,8 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from tqdm import tqdm
 
-from det_model.yolov4.yolo import YOLO as Model
+from det_model.yolov5.yolo import YOLO as Model
+# from det_model.yolov4.yolo import YOLO as Model
 # from det_model.yolov3.yolo import YOLO as Model
 # from det_model.ssd.ssd import SSD as Model
 # from det_model.faster_rcnn.frcnn import FRCNN as Model
@@ -22,6 +23,10 @@ if __name__ == "__main__":
     VOCdevkit_path, classes_path = get_data(root_path, DataType.LANE)
     modelType = check_model(Model.__module__)
     #-------------------------------#
+    if modelType == ModelType.YOLOV5: 
+        from det_model.yolov5.utils.utils import get_classes
+        from det_model.yolov5.utils.utils_map import get_coco_map, get_map
+
     if modelType == ModelType.YOLOV4: 
         from det_model.yolov4.utils.utils import get_classes
         from det_model.yolov4.utils.utils_map import get_coco_map, get_map
