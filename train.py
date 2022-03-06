@@ -126,7 +126,7 @@ if __name__ == "__main__":
     #   輸入的shape大小，一定要是32的倍數    
     #----------------------------------------------------------------------------------------------------------------------------#
     if modelType == ModelType.YOLOV5:
-        phi             = 'l'
+        phi             = 'm'
         model_path      = 'model_data/weight/yolov5_%s.pth'%(phi) #coco
         anchors_path    = 'det_model/yolov5/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
@@ -547,7 +547,8 @@ if __name__ == "__main__":
             elif modelType == ModelType.CENTERNET:  
                 # CenterNet
                 fit_one_epoch(model_train, model, loss_history, optimizer, epoch, 
-                        epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)            
-            lr_scheduler.step()
+                        epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda, backbone)      
+
+            if modelType != ModelType.YOLOV5:       lr_scheduler.step()
 
         print("End of UnFreeze Training")
