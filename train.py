@@ -9,8 +9,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.nn as nn
 
-# from det_model.yolox.nets.yolo import YoloBody as Model
-from det_model.yolov5.nets.yolo import YoloBody as Model
+from det_model.yolox.nets.yolo import YoloBody as Model
+# from det_model.yolov5.nets.yolo import YoloBody as Model
 # from det_model.yolov4.nets.yolo import YoloBody as Model
 # from det_model.yolov3.nets.yolo import YoloBody as Model
 # from det_model.ssd.nets.ssd import SSD300  as Model

@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from PIL import ImageDraw, ImageFont
 
-from nets.yolo import YoloBody
+from det_model.yolox.nets.yolo import YoloBody
 from det_model.yolox.utils.utils import cvtColor, get_classes, preprocess_input, resize_image
 from det_model.yolox.utils.utils_bbox import decode_outputs, non_max_suppression
 
@@ -25,8 +25,8 @@ class YOLO(object):
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #   所使用的YoloX的版本。nano、tiny、s、m、l、x
         #--------------------------------------------------------------------------#
-        "phi"               : 's',
-        "model_path"        : 'model_data/yolox_s.pth',
+        "phi"               : 'm',
+        "model_path"        : 'logs/YoloX/ep062-loss5.204-val_loss5.038.pth',
         # "classes_path"      : 'model_data/coco_classes.txt',
         #---------------------------------------------------------------------#
         #   输入图片的大小，必须为32的倍数。
