@@ -29,7 +29,7 @@ class CenterNet(object):
         #   验证集损失较低不代表mAP较高，仅代表该权值在验证集上泛化性能较好。
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #--------------------------------------------------------------------------#
-        "model_path"        : 'logs(LANE)/CenterNet/ep050-loss0.390-val_loss5.908.pth',
+        "model_path"        : 'logs/CenterNet/ep062-loss0.363-val_loss3.661.pth',
         #--------------------------------------------------------------------------#
         #   用于选择所使用的模型的主干
         #   resnet50, hourglass
