@@ -14,9 +14,10 @@ from det_model.yolox.nets.yolo import YoloBody as Model
 # from det_model.yolov4.nets.yolo import YoloBody as Model
 # from det_model.yolov3.nets.yolo import YoloBody as Model
 # from det_model.ssd.nets.ssd import SSD300  as Model
+# from det_model.centernet.nets.centernet import CenterNet_Resnet50 as Model
+
 # from det_model.retinanet.nets.retinanet import retinanet as Model
 # from det_model.faster_rcnn.nets.frcnn import FasterRCNN as Model
-# from det_model.centernet.nets.centernet import CenterNet_Resnet50 as Model
 
 from helps.choose_data import DataType, get_data
 from helps.choose_model import ModelType, check_model
@@ -71,21 +72,24 @@ if __name__ == "__main__":
         from det_model.yolov5.utils.utils import get_anchors, get_classes
         from det_model.yolov5.utils.utils_fit import fit_one_epoch 
     elif modelType == ModelType.YOLOV4: 
-        from det_model.yolov4.nets.yolo_training import YOLOLoss, weights_init
+        from det_model.yolov4.nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr,
+                                weights_init)
         from det_model.yolov4.utils.callbacks import LossHistory
         from det_model.yolov4.utils.dataloader import YoloDataset, yolo_dataset_collate
         from det_model.yolov4.utils.utils import get_anchors, get_classes
         from det_model.yolov4.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.YOLOV3: 
-        from det_model.yolov3.nets.yolo_training import YOLOLoss, weights_init
+        from det_model.yolov3.nets.yolo_training import (YOLOLoss, get_lr_scheduler, set_optimizer_lr,
+                                weights_init)
         from det_model.yolov3.utils.callbacks import LossHistory
         from det_model.yolov3.utils.dataloader import YoloDataset, yolo_dataset_collate
         from det_model.yolov3.utils.utils import get_anchors, get_classes
         from det_model.yolov3.utils.utils_fit import fit_one_epoch
 
     elif modelType == ModelType.SSD: 
-        from det_model.ssd.nets.ssd_training import MultiboxLoss, weights_init
+        from det_model.ssd.nets.ssd_training import (MultiboxLoss, get_lr_scheduler,
+                               set_optimizer_lr, weights_init)
         from det_model.ssd.utils.anchors import get_anchors
         from det_model.ssd.utils.callbacks import LossHistory
         from det_model.ssd.utils.dataloader import SSDDataset, ssd_dataset_collate
@@ -133,47 +137,52 @@ if __name__ == "__main__":
 
     #   輸入的shape大小，一定要是32的倍數    
     #----------------------------------------------------------------------------------------------------------------------------#
+    weight_decay    = 5e-4
+    gamma           = 0.94
+    optimizer_type      = "sgd"
+    momentum            = 0.937
+
     if modelType == ModelType.YOLOX:
-        phi             = 'm' # YoloX的版本。nano、tiny、s、m、l、x
+        phi             = 's' # YoloX的版本。nano、tiny、s、m、l、x
         model_path      = 'model_data/weight/yolox_%s.pth'%(phi) #coco
         anchors_path    = 'det_model/yolox/yolo_anchors.txt'
         input_shape     = [640, 640]  
-        weight_decay    = 5e-4
-        gamma           = 0.94
-        optimizer_type      = "sgd"
-        momentum            = 0.937
+        # weight_decay    = 5e-4
+        # gamma           = 0.94
+        # optimizer_type      = "sgd"
+        # momentum            = 0.937
     elif modelType == ModelType.YOLOV5:
         phi             = 'm' # # YoloV5的版本。s、m、l、x
         model_path      = 'model_data/weight/yolov5_%s.pth'%(phi) #coco
         anchors_path    = 'det_model/yolov5/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [640, 640]  
-        weight_decay    = 5e-4
-        gamma           = 0.94
-        optimizer_type      = "sgd"
-        momentum            = 0.937
+        # weight_decay    = 5e-4
+        # gamma           = 0.94
+        # optimizer_type      = "sgd"
+        # momentum            = 0.937
     elif modelType == ModelType.YOLOV4:
         model_path      = 'model_data/weight/yolo4_weights.pth' #coco
         anchors_path    = 'det_model/yolov4/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [608, 608]  
-        weight_decay    = 5e-4
-        gamma           = 0.94
+        # weight_decay    = 5e-4
+        # gamma           = 0.94
 
     elif modelType == ModelType.YOLOV3:
         model_path      = 'model_data/weight/yolo3_weights.pth' #coco
         anchors_path    = 'det_model/yolov3/yolo_anchors.txt'
         anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
         input_shape     = [416, 416]  
-        weight_decay    = 5e-4
-        gamma           = 0.94
+        # weight_decay    = 5e-4
+        # gamma           = 0.94
     
     elif modelType == ModelType.SSD:
         model_path      = 'model_data/weight/ssd_weights.pth'
         input_shape     = [300, 300]
         backbone        = "vgg"     #   vgg或者mobilenetv2
-        weight_decay    = 5e-4
-        gamma           = 0.94
+        # weight_decay    = 5e-4
+        # gamma           = 0.94
 
     elif modelType == ModelType.RETINANET:
         model_path      = 'model_data/weight/retinanet_resnet50.pth'
@@ -193,8 +202,8 @@ if __name__ == "__main__":
         model_path      = 'model_data/weight/centernet_resnet50_voc.pth'
         input_shape     = [512, 512]
         backbone        = "resnet50"
-        weight_decay    = 5e-4
-        gamma           = 0.94
+        # weight_decay    = 5e-4
+        # gamma           = 0.94
     #----------------------------------------------------------------------------------------------------------------------------#
     #   是否使用主幹網絡的預訓練權重，此處使用的是主幹的權重，因此是在模型構建的時候進行加載的。
     #   如果設置了model_path，則主幹的權值無需加載，pretrained的值無意義。
@@ -414,7 +423,7 @@ if __name__ == "__main__":
             loss_history.reset_stop() 
             lr          = Unfreeze_lr
         #-------------------------------------------------------------------#
-        if modelType in [ModelType.YOLOX, ModelType.YOLOV5]:
+        if modelType in [ModelType.YOLOX, ModelType.YOLOV5, ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD]:
             #-------------------------------------------------------------------#
             #   判断当前batch_size与64的差别，自适应调整学习率
             #-------------------------------------------------------------------#
@@ -432,12 +441,19 @@ if __name__ == "__main__":
                     pg0.append(v.weight)    
                 elif hasattr(v, "weight") and isinstance(v.weight, nn.Parameter):
                     pg1.append(v.weight)   
-            optimizer = {
-                'adam'  : optim.Adam(pg0, Init_lr_fit, betas = (momentum, 0.999)),
-                'sgd'   : optim.SGD(pg0, Init_lr_fit, momentum = momentum, nesterov=True)
-            }[optimizer_type]
-            optimizer.add_param_group({"params": pg1, "weight_decay": weight_decay})
-            optimizer.add_param_group({"params": pg2})
+
+            if modelType !=  ModelType.SSD:
+                optimizer = {
+                    'adam'  : optim.Adam(pg0, Init_lr_fit, betas = (momentum, 0.999)),
+                    'sgd'   : optim.SGD(pg0, Init_lr_fit, momentum = momentum, nesterov=True)
+                }[optimizer_type]
+                optimizer.add_param_group({"params": pg1, "weight_decay": weight_decay})
+                optimizer.add_param_group({"params": pg2})
+            else:
+                 optimizer = {
+                'adam'  : optim.Adam(model.parameters(), Init_lr_fit, betas = (momentum, 0.999), weight_decay = weight_decay),
+                'sgd'   : optim.SGD(model.parameters(), Init_lr_fit, momentum = momentum, nesterov=True, weight_decay = weight_decay)
+                }[optimizer_type]
             #---------------------------------------#
             #   获得学习率下降的公式
             #---------------------------------------#
@@ -451,7 +467,8 @@ if __name__ == "__main__":
                 lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma = gamma)
         #-------------------------------------------------------------------#
         if modelType in [ModelType.YOLOX, ModelType.YOLOV5]:
-            mosaic              = True
+            # mosaic              = True
+            mosaic              = False
             train_dataset   = YoloDataset(train_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=mosaic, train = True)
             val_dataset     = YoloDataset(val_lines, input_shape, num_classes, epoch_length = UnFreeze_Epoch, mosaic=False, train = False)   
             dataset_collate = yolo_dataset_collate     
@@ -539,7 +556,7 @@ if __name__ == "__main__":
                 loss_history.reset_stop() 
 
                 if modelType == ModelType.FASTER_RCNN: train_util      = FasterRCNNTrainer(model, optimizer) 
-                if modelType in [ModelType.YOLOX, ModelType.YOLOV5]: 
+                if modelType in [ModelType.YOLOX, ModelType.YOLOV5, ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD]: 
                     #-------------------------------------------------------------------#
                     #   判断当前batch_size与64的差别，自适应调整学习率
                     #-------------------------------------------------------------------#
@@ -555,12 +572,12 @@ if __name__ == "__main__":
             # only early stop when UnFreeze Training
             if (UnFreeze_flag and Early_Stopping and loss_history.stopping): break
 
-            if modelType in [ModelType.YOLOX, ModelType.YOLOV5]: 
+            if modelType in [ModelType.YOLOX, ModelType.YOLOV5, ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD]: 
                 set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
                 fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
 
             
-            elif modelType in [ModelType.YOLOV4, ModelType.YOLOV3, ModelType.SSD, ModelType.RETINANET]:  
+            elif modelType in [ModelType.RETINANET]:  
                 # Yolov3 / Yolov4 / SSD / Retinanet
                 fit_one_epoch(model_train, model, criterion, loss_history, optimizer, epoch, 
                         epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
