@@ -5,7 +5,8 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from tensorboardX import SummaryWriter
-from torchsummary import summary
+from torchinfo import summary
+# from torchsummary import summary
 import io
 from contextlib import redirect_stdout
 import threading
@@ -50,7 +51,8 @@ class LossHistory():
 
         f = io.StringIO()
         with redirect_stdout(f):
-            summary(cpu_model, (3, 640, 640), device="cpu")
+            summary(cpu_model, input_size=(1, 3, 640, 640), device="cpu")
+            # summary(cpu_model, input_size=(1, 640, 640), device="cpu")
         lines = f.getvalue()
         with open(os.path.join(self.log_dir, "summary.txt") ,"w") as f:
             [f.write(line) for line in lines]
