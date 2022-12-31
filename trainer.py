@@ -258,7 +258,7 @@ class Trainer:
         opt.Init_lr_fit = max(opt.batch_size / nbs * opt.Init_lr, 1e-4)
         opt.Min_lr_fit  = max(opt.batch_size / nbs * opt.Min_lr, 1e-6)
 
-        self.optimizer = models.get_optimizer(self.model, opt)
+        self.optimizer = models.get_optimizer(self.model, opt, opt.optimizer_type)
         self.lr_scheduler_func = get_lr_scheduler(opt.lr_decay_type, opt.Init_lr_fit, opt.Min_lr_fit, opt.UnFreeze_Epoch)
 
         #---------------------------------------#
@@ -279,9 +279,26 @@ class Trainer:
 
         self.loss_history = LossHistory(opt)
         print()
+        
+    
     
     def train(self):
-         #---------------------------------------#
+        # self.opt.Init_Epoch = 49
+        if self.opt.Freeze_Train:
+            #------------------------------------#
+            #   凍結一定部分訓練
+            #------------------------------------#
+            self.loss_history.set_status(freeze=True)
+            self.model.freeze_backbone() 
+            self.loss_history.reset_stop()
+        else:
+            #------------------------------------#
+            #   解凍後訓練
+            #------------------------------------#
+            self.loss_history.set_status(freeze=False)
+            self.model.unfreeze_backbone()   
+            self.loss_history.reset_stop() 
+        #---------------------------------------#
         #   开始模型训练
         #---------------------------------------#
         for epoch in range(self.opt.Init_Epoch, self.opt.UnFreeze_Epoch):
@@ -290,9 +307,16 @@ class Trainer:
             #   则解冻，并设置参数
             #---------------------------------------#
             if epoch >= self.opt.Freeze_Epoch and not self.opt.UnFreeze_flag and self.opt.Freeze_Train:
-                batch_size = self.opt.Unfreeze_batch_size
-
-                #-------------------------------------------------------------------#
+                #-----------------------------------------------------------------------------------------#
+                batch_size = self.opt.Unfreeze_batch_size   
+                self.opt.end_epoch = self.opt.UnFreeze_Epoch
+                #-----------------------------------------------------------------------------------------#
+                self.optimizer = models.get_optimizer(self.model, self.opt, 'adam')                                          
+                #-----------------------------------------------------------------------------------------#
+                self.loss_history.set_status(freeze=False)
+                self.model.unfreeze_backbone()   
+                self.loss_history.reset_stop() 
+                #-----------------------------------------------------------------------------------------#
                 #   判断当前batch_size，自适应调整学习率
                 #-------------------------------------------------------------------#
                 nbs             = 64
@@ -319,13 +343,20 @@ class Trainer:
                     raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
                 if self.opt.distributed:
-                    batch_size = batch_size // self.opt.ngpus_per_node                            
+                    batch_size = batch_size // self.opt.ngpus_per_node     
+                
+                self.train_loader, self.test_loader = models.generate_loader(self.opt) 
 
                 self.opt.UnFreeze_flag = True
+
+            # only early stop when UnFreeze Training
+            if (self.opt.UnFreeze_flag and self.opt.Early_Stopping and self.loss_history.stopping): break
 
             set_optimizer_lr(self.optimizer, self.lr_scheduler_func, epoch)
 
             fit_one_epoch(self.model_train, self.model, self.criterion, self.loss_history, self.optimizer, epoch, self.epoch_step, self.epoch_step_val, 
                             self.train_loader, self.test_loader, self.opt.end_epoch, self.opt.Cuda)
+
+        print("End of UnFreeze Training")
                         
         

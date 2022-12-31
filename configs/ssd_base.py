@@ -41,7 +41,8 @@ def get_opts():
     opt = argparse.Namespace()  
 
     #the train data, you need change.
-    opt.data_root = '/home/leyan/DataSet/'
+    # opt.data_root = '/home/leyan/DataSet/'
+    opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
   
     opt.out_root = 'work_dirs/'
     opt.exp_name = 'lane'
@@ -77,7 +78,7 @@ def get_opts():
 
     #############################################################################################    
     opt.net = 'ssd'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
-    opt.model_path      = 'model_data/ssd_weights.pth'
+    opt.model_path      = 'model_data/weight/ssd_weights.pth'
     opt.input_shape     = [300, 300]  
     opt.backbone        = "vgg"   
     opt.pretrained      = False
@@ -94,6 +95,16 @@ def get_opts():
     get_anchors = importlib.import_module("det_model.{}.utils.anchors".format(opt.net)).get_anchors
     opt.anchors = get_anchors(opt.input_shape, opt.anchors_size, opt.backbone)
     #------------------------------------------------------#
+    #   Yolov4的tricks應用
+    #   mosaic 馬賽克數據增強 True or False 
+    #   實際測試時mosaic數據增強並不穩定，所以默認為False
+    #   Cosine_lr 余弦退火學習率 True or False
+    #   label_smoothing 標簽平滑 0.01以下一般 如0.01、0.005
+    #------------------------------------------------------#
+    opt.mosaic              = False    
+    opt.Cosine_lr           = False
+    opt.label_smoothing     = 0
+    #----------------------------------------------------#
     #----------------------------------------------------#
     #   凍結階段訓練參數
     #   此時模型的主幹被凍結了，特征提取網絡不發生改變
