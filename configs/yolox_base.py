@@ -156,9 +156,9 @@ def get_opts():
     #------------------------------------------------------#
     opt.num_workers         = 4
     opt.Cuda                = True
-    opt.distributed         = False
-    opt.sync_bn             = False
-    opt.fp16                = False
+    opt.distributed         = True
+    opt.sync_bn             = True
+    opt.fp16                = True
     #############################################################################################
     opt.debug = 0
     ### Other ###
