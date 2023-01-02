@@ -54,7 +54,7 @@ def get_opts():
     opt.net = 'centernet'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
     opt.model_path      = 'model_data/weight/centernet_resnet50_voc.pth'
     opt.input_shape     = [512, 512]  
-    # opt.backbone        = "resnet50"   
+    opt.backbone        = "resnet50"   
     opt.pretrained      = False
     opt.IM_SHAPE = (opt.input_shape[0], opt.input_shape[1], 3)
     #------------------------------------------------------#
@@ -158,9 +158,9 @@ def get_opts():
     #------------------------------------------------------#
     opt.num_workers         = 4
     opt.Cuda                = True
-    opt.distributed         = False
-    opt.sync_bn             = False
-    opt.fp16                = False
+    opt.distributed         = True
+    opt.sync_bn             = True
+    opt.fp16                = True
     #############################################################################################
     opt.debug = 0
     ### Other ###
