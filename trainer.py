@@ -24,14 +24,31 @@ import threading
 from tqdm import tqdm
 from helps.utils import *
 from models.script import get_fit_func
-
+import torch.distributed as dist
 
 
 class Trainer:
     def __init__(self, opt):
-        self.opt = opt
-        self.device = torch.device("cuda" if opt.ngpu else "cpu")
-        
+        # self.opt = opt
+        # self.device = torch.device("cuda" if opt.ngpu else "cpu")
+        #------------------------------------------------------#
+        #   设置用到的显卡
+        #------------------------------------------------------#
+        ngpus_per_node  = torch.cuda.device_count()
+        if opt.distributed:
+            dist.init_process_group(backend="nccl")
+            local_rank  = int(os.environ["LOCAL_RANK"])
+            rank        = int(os.environ["RANK"])
+            device      = torch.device("cuda", local_rank)
+            if local_rank == 0:
+                print(f"[{os.getpid()}] (rank = {rank}, local_rank = {local_rank}) training...")
+                print("Gpu Device Count : ", ngpus_per_node)            
+        else:
+            device          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            local_rank      = 0
+            rank            = 0
+
+        opt.local_rank = local_rank        
         self.model, self.criterion  = models.get_model(opt)     
         # ------------------------------------------------------------------------------- 
         rndm_input = torch.autograd.Variable(
@@ -76,13 +93,15 @@ class Trainer:
         #     cudnn.benchmark = True
         #     self.model_train = self.model_train.cuda()
 
-        self.model_train = self.model.train()
-        if opt.Cuda:
-            self.model_train = torch.nn.DataParallel(self.model)
-            cudnn.benchmark = True
-            self.model_train = self.model_train.cuda()
+        # self.model_train = self.model.train()
+        # if opt.Cuda:
+        #     self.model_train = torch.nn.DataParallel(self.model)
+        #     cudnn.benchmark = True
+        #     self.model_train = self.model_train.cuda()
 
-        self.model.train()  
+        # self.model.train()  
+
+        self.model_train = self.model.train()
       
         #-------------------------------------------------------------------#
         #   判断当前batch_size与64的差别，自适应调整学习率
@@ -112,7 +131,41 @@ class Trainer:
 
         self.loss_history = LossHistory(opt)
         self.fit_one_epoch = get_fit_func(opt)
-        print()
+        #------------------------------------------------------------------#
+        #   torch 1.2不支持amp，建议使用torch 1.7.1及以上正确使用fp16
+        #   因此torch1.2这里显示"could not be resolve"
+        #------------------------------------------------------------------#
+        if opt.fp16:
+            from torch.cuda.amp import GradScaler as GradScaler
+            opt.scaler = GradScaler()
+        else:
+            opt.scaler = None
+            print()
+        #----------------------------#
+        #   多卡同步Bn
+        #----------------------------#
+        if opt.sync_bn and ngpus_per_node > 1 and opt.distributed:
+            model_train = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model_train)
+        elif opt.sync_bn:
+            print("Sync_bn is not support in one gpu or not distributed.")
+        
+        if opt.Cuda:
+            if opt.distributed:
+                #----------------------------#
+                #   多卡平行运行
+                #----------------------------#
+                model_train = model_train.cuda(local_rank)
+                model_train = torch.nn.parallel.DistributedDataParallel(model_train, device_ids=[local_rank], find_unused_parameters=True)
+            else:
+                model_train = torch.nn.DataParallel(self.model)
+                cudnn.benchmark = True
+                model_train = model_train.cuda()
+        
+        #----------------------------#
+        #   权值平滑
+        #----------------------------#
+        opt.ema = ModelEMA(model_train)
+        self.opt = opt
         
     
     
@@ -165,14 +218,7 @@ class Trainer:
                 #   获得学习率下降的公式
                 #---------------------------------------#
                 self.lr_scheduler_func = get_lr_scheduler(self.opt.lr_decay_type, Init_lr_fit, Min_lr_fit, self.opt.UnFreeze_Epoch)
-                
-                if self.opt.backbone == "vgg":
-                    for param in self.model.vgg[:28].parameters():
-                        param.requires_grad = True
-                else:
-                    for param in self.model.mobilenet.parameters():
-                        param.requires_grad = True
-                        
+                                                     
                 epoch_step      = self.opt.num_train // batch_size
                 epoch_step_val  = self.opt.num_val // batch_size
 

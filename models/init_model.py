@@ -35,7 +35,7 @@ def init_dt_model(opt):
         model = SSD300(opt.num_classes, opt.backbone, opt.pretrained)
     elif opt.net == 'retinanet':
         from det_model.retinanet.nets.retinanet import retinanet
-        model = retinanet(opt.num_classes, opt.phi, opt.pretrained)
+        model = retinanet(opt.num_classes, opt.phi, opt.pretrained, opt.fp16)
     elif opt.net == 'centernet':
         from det_model.centernet.nets.centernet import CenterNet_Resnet50
         model = CenterNet_Resnet50(opt.num_classes, opt.pretrained)
