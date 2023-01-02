@@ -85,7 +85,7 @@ def init_loss(opt):
         criterion    = YOLOLoss(opt.anchors, opt.num_classes, opt.input_shape, opt.Cuda, opt.anchors_mask, opt.label_smoothing)
     elif opt.net == 'yolox':
         from det_model.yolox.nets.yolo_training import YOLOLoss
-        criterion    = YOLOLoss(opt.num_classes)
+        criterion    = YOLOLoss(opt.num_classes, opt.fp16)
 
     return criterion
 
