@@ -367,6 +367,6 @@ def ssd_dataset_collate(batch):
     for img, box in batch:
         images.append(img)
         bboxes.append(box)
-    images = np.array(images)
-    bboxes = np.array(bboxes)
+    images = torch.from_numpy(np.array(images)).type(torch.FloatTensor)
+    bboxes = torch.from_numpy(np.array(bboxes)).type(torch.FloatTensor)
     return images, bboxes
