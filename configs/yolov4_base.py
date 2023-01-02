@@ -50,10 +50,9 @@ def get_opts():
 
 
     #############################################################################################    
-    opt.net = 'ssd'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
-    opt.model_path      = 'model_data/weight/ssd_weights.pth'
-    opt.input_shape     = [300, 300]  
-    opt.backbone        = "vgg"   
+    opt.net = 'yolov4'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
+    opt.model_path      = 'model_data/weight/yolo4_weights.pth'
+    opt.input_shape     = [608, 608]  
     opt.pretrained      = False
     opt.IM_SHAPE = (opt.input_shape[0], opt.input_shape[1], 3)
     #------------------------------------------------------#
@@ -63,10 +62,10 @@ def get_opts():
     #   一般调小浅层先验框的大小就行了！因为浅层负责小物体检测！
     #   比如anchors_size = [21, 45, 99, 153, 207, 261, 315]
     #------------------------------------------------------#
-    opt.anchors_size    = [30, 60, 111, 162, 213, 264, 315]
-    opt.num_classes += 1
-    get_anchors = importlib.import_module("det_model.{}.utils.anchors".format(opt.net)).get_anchors
-    opt.anchors = get_anchors(opt.input_shape, opt.anchors_size, opt.backbone)
+    opt.anchors_path    = 'det_model/yolov4/yolo_anchors.txt'
+    opt.anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]
+    get_anchors = importlib.import_module("det_model.{}.utils.utils".format(opt.net)).get_anchors
+    opt.anchors, opt.num_anchors     = get_anchors(opt.anchors_path)
     #------------------------------------------------------#
     #   Yolov4的tricks應用
     #   mosaic 馬賽克數據增強 True or False 
@@ -74,7 +73,7 @@ def get_opts():
     #   Cosine_lr 余弦退火學習率 True or False
     #   label_smoothing 標簽平滑 0.01以下一般 如0.01、0.005
     #------------------------------------------------------#
-    opt.mosaic              = False    
+    opt.mosaic              = True    
     opt.Cosine_lr           = False
     opt.label_smoothing     = 0
     #----------------------------------------------------#

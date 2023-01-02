@@ -7,8 +7,9 @@ import torchvision as tv
 from torch.utils.tensorboard import SummaryWriter
 from helps.tools import init_logging
 import importlib
-from helps.utils import get_data_path, get_classes  
+from helps.utils import get_data_path, get_classes
 
+   
    
 def get_opts():
     opt = argparse.Namespace()  
@@ -50,24 +51,23 @@ def get_opts():
 
 
     #############################################################################################    
-    opt.net = 'ssd'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
-    opt.model_path      = 'model_data/weight/ssd_weights.pth'
-    opt.input_shape     = [300, 300]  
-    opt.backbone        = "vgg"   
+    opt.net = 'retinanet'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
+    opt.model_path      = 'model_data/weight/retinanet_resnet50.pth'
+    opt.input_shape     = [600, 600]  
     opt.pretrained      = False
     opt.IM_SHAPE = (opt.input_shape[0], opt.input_shape[1], 3)
     #------------------------------------------------------#
-    #   可用于设定先验框的大小，默认的anchors_size
-    #   是根据voc数据集设定的，大多数情况下都是通用的！
-    #   如果想要检测小物体，可以修改anchors_size
-    #   一般调小浅层先验框的大小就行了！因为浅层负责小物体检测！
-    #   比如anchors_size = [21, 45, 99, 153, 207, 261, 315]
+    #   0、1、2、3、4分别是
+    #   resnet18, resnet34, resnet50, resnet101, resnet152
     #------------------------------------------------------#
-    opt.anchors_size    = [30, 60, 111, 162, 213, 264, 315]
-    opt.num_classes += 1
-    get_anchors = importlib.import_module("det_model.{}.utils.anchors".format(opt.net)).get_anchors
-    opt.anchors = get_anchors(opt.input_shape, opt.anchors_size, opt.backbone)
-    #------------------------------------------------------#
+    opt.phi             = 2
+    # #----------------------------------------------------------------------------------------------------------------------------#
+    # #   可用于设定先验框的大小，默认的anchors_size
+    # #   是根据voc数据集设定的，大多数情况下都是通用的！
+    # #   如果想要检测小物体，可以修改anchors_size
+    # #   一般调小浅层先验框的大小就行了！因为浅层负责小物体检测！
+    # #   比如anchors_size = [21, 45, 99, 153, 207, 261, 315]
+    # #------------------------------------------------------#
     #   Yolov4的tricks應用
     #   mosaic 馬賽克數據增強 True or False 
     #   實際測試時mosaic數據增強並不穩定，所以默認為False
@@ -111,16 +111,15 @@ def get_opts():
     #   Init_lr         模型的最大学习率
     #   Min_lr          模型的最小学习率，默认为最大学习率的0.01
     #------------------------------------------------------------------#
-    opt.Init_lr             = 1e-2
+    opt.Init_lr             = 1e-4
     opt.Min_lr              = opt.Init_lr * 0.01
     #------------------------------------------------------------------#
     #   lr_decay_type   使用到的学习率下降方式，可选的有step、cos
     #------------------------------------------------------------------#
     opt.lr_decay_type       = "cos"
-    opt.weight_decay    = 5e-4
-    opt.gamma           = 0.94
-    opt.optimizer_type      = "sgd"
-    opt.momentum            = 0.937
+    opt.weight_decay        = 0
+    opt.optimizer_type      = "adam"
+    opt.momentum            = 0.9
     #------------------------------------------------------#
     #   是否提早結束。
     #------------------------------------------------------#

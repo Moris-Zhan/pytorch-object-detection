@@ -4,18 +4,60 @@ import torch.nn as nn
 import importlib
 import torch.optim as optim
 
+def weights_init(net, init_type='normal', init_gain = 0.02):
+    def init_func(m):
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and classname.find('Conv') != -1:
+            if init_type == 'normal':
+                torch.nn.init.normal_(m.weight.data, 0.0, init_gain)
+            elif init_type == 'xavier':
+                torch.nn.init.xavier_normal_(m.weight.data, gain=init_gain)
+            elif init_type == 'kaiming':
+                torch.nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                torch.nn.init.orthogonal_(m.weight.data, gain=init_gain)
+            else:
+                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+        elif classname.find('BatchNorm2d') != -1:
+            torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+            torch.nn.init.constant_(m.bias.data, 0.0)
+    print('initialize network with %s type' % init_type)
+    net.apply(init_func)
 
-def get_model(opt):
-    if opt.net == 'ssd':
-        model = init_dt_model(opt)
-        criterion = init_loss(opt)
-
+def get_model(opt):  
+    model = init_dt_model(opt)
+    criterion = init_loss(opt)   
     return model, criterion
 
 def init_dt_model(opt):
     if opt.net == 'ssd':
         from det_model.ssd.nets.ssd import SSD300
         model = SSD300(opt.num_classes, opt.backbone, opt.pretrained)
+    elif opt.net == 'retinanet':
+        from det_model.retinanet.nets.retinanet import retinanet
+        model = retinanet(opt.num_classes, opt.phi, opt.pretrained)
+    elif opt.net == 'centernet':
+        from det_model.centernet.nets.centernet import CenterNet_Resnet50
+        model = CenterNet_Resnet50(opt.num_classes, opt.pretrained)
+    elif opt.net == 'faster_rcnn':
+        from det_model.faster_rcnn.nets.frcnn import FasterRCNN 
+        model = FasterRCNN(opt.num_classes, anchor_scales = opt.anchors_size, backbone = opt.backbone, pretrained = opt.pretrained)
+    elif opt.net == 'yolov3':
+        from det_model.yolov3.nets.yolo import YoloBody
+        model = YoloBody(opt.anchors_mask, opt.num_classes)
+        weights_init(model)
+    elif opt.net == 'yolov4':
+        from det_model.yolov4.nets.yolo import YoloBody
+        model = YoloBody(opt.anchors_mask, opt.num_classes)
+        weights_init(model)
+    elif opt.net == 'yolov5':
+        from det_model.yolov5.nets.yolo import YoloBody
+        model = YoloBody(opt.anchors_mask, opt.num_classes, opt.phi)
+        weights_init(model)
+    elif opt.net == 'yolox':
+        from det_model.yolox.nets.yolo import YoloBody
+        model = YoloBody(opt.num_classes, opt.phi)
+        weights_init(model)
 
     return model    
 
@@ -23,14 +65,35 @@ def init_loss(opt):
     if opt.net == 'ssd':
         from det_model.ssd.nets.ssd_training import MultiboxLoss
         criterion       = MultiboxLoss(opt.num_classes, neg_pos_ratio=3.0)
+    elif opt.net == 'retinanet':
+        from det_model.retinanet.nets.retinanet_training import FocalLoss
+        criterion      = FocalLoss()  
+    elif opt.net == 'centernet':
+        from det_model.centernet.nets.centernet_training import focal_loss, reg_l1_loss
+        criterion      = (focal_loss, reg_l1_loss)
+    elif opt.net == 'faster_rcnn':
+        from det_model.retinanet.nets.retinanet_training import FocalLoss
+        criterion      = "rpn_roi" 
+    elif opt.net == 'yolov3':
+        from det_model.yolov3.nets.yolo_training import YOLOLoss
+        criterion    = YOLOLoss(opt.anchors, opt.num_classes, opt.input_shape, opt.Cuda, opt.anchors_mask) 
+    elif opt.net == 'yolov4':
+        from det_model.yolov4.nets.yolo_training import YOLOLoss
+        criterion    = YOLOLoss(opt.anchors, opt.num_classes, opt.input_shape, opt.Cuda, opt.anchors_mask, opt.label_smoothing)
+    elif opt.net == 'yolov5':
+        from det_model.yolov5.nets.yolo_training import YOLOLoss
+        criterion    = YOLOLoss(opt.anchors, opt.num_classes, opt.input_shape, opt.Cuda, opt.anchors_mask, opt.label_smoothing)
+    elif opt.net == 'yolox':
+        from det_model.yolox.nets.yolo_training import YOLOLoss
+        criterion    = YOLOLoss(opt.num_classes)
+
     return criterion
 
-def get_optimizer(model, opt):
-    if opt.net == 'ssd':
-        optimizer = {
-                'adam'  : optim.Adam(model.parameters(), opt.Init_lr_fit, betas = (opt.momentum, 0.999), weight_decay = opt.weight_decay),
-                'sgd'   : optim.SGD(model.parameters(), opt.Init_lr_fit, momentum = opt.momentum, nesterov=True, weight_decay = opt.weight_decay)
-            }[opt.optimizer_type]   
+def get_optimizer(model, opt, optimizer_type):    
+    optimizer = {
+            'adam'  : optim.Adam(model.parameters(), opt.Init_lr_fit, betas = (opt.momentum, 0.999), weight_decay = opt.weight_decay),
+            'sgd'   : optim.SGD(model.parameters(), opt.Init_lr_fit, momentum = opt.momentum, nesterov=True, weight_decay = opt.weight_decay)
+        }[optimizer_type]   
     return optimizer
 
 def generate_loader(opt):      
@@ -40,6 +103,41 @@ def generate_loader(opt):
         train_dataset   = SSDDataset(opt.train_lines, opt.input_shape, opt.anchors, opt.batch_size, opt.num_classes, train = True)
         val_dataset     = SSDDataset(opt.val_lines, opt.input_shape, opt.anchors, opt.batch_size, opt.num_classes, train = False)
         dataset_collate = ssd_dataset_collate  
+    elif opt.net == 'retinanet':
+        from det_model.retinanet.utils.dataloader import RetinanetDataset, retinanet_dataset_collate     
+        train_dataset   = RetinanetDataset(opt.train_lines, opt.input_shape,  opt.num_classes, train = True)
+        val_dataset     = RetinanetDataset(opt.val_lines, opt.input_shape, opt.num_classes, train = False)
+        dataset_collate = retinanet_dataset_collate 
+    elif opt.net == 'centernet':
+        from det_model.centernet.utils.dataloader import CenternetDataset, centernet_dataset_collate    
+        train_dataset   = CenternetDataset(opt.train_lines, opt.input_shape,  opt.num_classes, train = True)
+        val_dataset     = CenternetDataset(opt.val_lines, opt.input_shape, opt.num_classes, train = False)
+        dataset_collate = centernet_dataset_collate    
+    elif opt.net == 'faster_rcnn':
+        from det_model.faster_rcnn.utils.dataloader import FRCNNDataset, frcnn_dataset_collate
+        train_dataset   = FRCNNDataset(opt.train_lines, opt.input_shape, train = True)
+        val_dataset     = FRCNNDataset(opt.val_lines, opt.input_shape, train = False)
+        dataset_collate = frcnn_dataset_collate
+    elif opt.net == 'yolov3':
+        from det_model.yolov3.utils.dataloader import YoloDataset, yolo_dataset_collate
+        train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, train = True)
+        val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, train = False)
+        dataset_collate = yolo_dataset_collate
+    elif opt.net == 'yolov4':
+        from det_model.yolov4.utils.dataloader import YoloDataset, yolo_dataset_collate
+        train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, mosaic=opt.mosaic, train = True)
+        val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, mosaic=opt.mosaic, train = False)
+        dataset_collate = yolo_dataset_collate
+    elif opt.net == 'yolov5':
+        from det_model.yolov5.utils.dataloader import YoloDataset, yolo_dataset_collate
+        train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = True)
+        val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = False)
+        dataset_collate = yolo_dataset_collate
+    elif opt.net == 'yolox':
+        from det_model.yolox.utils.dataloader import YoloDataset, yolo_dataset_collate
+        train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = True)
+        val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = False)
+        dataset_collate = yolo_dataset_collate
 
     if opt.distributed:
         train_sampler   = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True,)
@@ -57,16 +155,3 @@ def generate_loader(opt):
     gen_val         = torch.utils.data.DataLoader(val_dataset  , shuffle = shuffle, batch_size = batch_size, num_workers = opt.num_workers, pin_memory=True, 
                                     drop_last=True, collate_fn=dataset_collate, sampler=val_sampler) 
     return gen, gen_val
-
-# def init_optimizer(opt):
-#     if opt.net == "ssd":
-#         from det_model.ssd.nets.ssd_training import set_optimizer_lr
-#         optimizer       = optim.Adam(model_train.parameters(), lr, weight_decay = weight_decay)
-#         set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
-#     return 0
-
-# def init_scheduler(opt):
-#     if opt.net == "ssd":
-#         from det_model.ssd.nets.ssd_training import (MultiboxLoss, get_lr_scheduler,
-#                                set_optimizer_lr
-#     return 0

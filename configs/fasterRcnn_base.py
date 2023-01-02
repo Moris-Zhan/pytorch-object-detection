@@ -50,10 +50,10 @@ def get_opts():
 
 
     #############################################################################################    
-    opt.net = 'ssd'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
-    opt.model_path      = 'model_data/weight/ssd_weights.pth'
-    opt.input_shape     = [300, 300]  
-    opt.backbone        = "vgg"   
+    opt.net = 'faster_rcnn'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
+    opt.model_path      = 'model_data/weight/voc_weights_resnet.pth'
+    opt.input_shape     = [600, 600]  
+    opt.backbone        = "resnet50"  #   vgg或者resnet50   
     opt.pretrained      = False
     opt.IM_SHAPE = (opt.input_shape[0], opt.input_shape[1], 3)
     #------------------------------------------------------#
@@ -63,10 +63,9 @@ def get_opts():
     #   一般调小浅层先验框的大小就行了！因为浅层负责小物体检测！
     #   比如anchors_size = [21, 45, 99, 153, 207, 261, 315]
     #------------------------------------------------------#
-    opt.anchors_size    = [30, 60, 111, 162, 213, 264, 315]
-    opt.num_classes += 1
-    get_anchors = importlib.import_module("det_model.{}.utils.anchors".format(opt.net)).get_anchors
-    opt.anchors = get_anchors(opt.input_shape, opt.anchors_size, opt.backbone)
+    opt.anchors_size    = [8, 16, 32]
+    # get_anchors = importlib.import_module("det_model.{}.utils.anchors".format(opt.net)).get_anchors
+    # opt.anchors = get_anchors(opt.input_shape, opt.anchors_size, opt.backbone)
     #------------------------------------------------------#
     #   Yolov4的tricks應用
     #   mosaic 馬賽克數據增強 True or False 
@@ -111,16 +110,15 @@ def get_opts():
     #   Init_lr         模型的最大学习率
     #   Min_lr          模型的最小学习率，默认为最大学习率的0.01
     #------------------------------------------------------------------#
-    opt.Init_lr             = 1e-2
+    opt.Init_lr             = 1e-4
     opt.Min_lr              = opt.Init_lr * 0.01
     #------------------------------------------------------------------#
     #   lr_decay_type   使用到的学习率下降方式，可选的有step、cos
     #------------------------------------------------------------------#
     opt.lr_decay_type       = "cos"
-    opt.weight_decay    = 5e-4
-    opt.gamma           = 0.94
-    opt.optimizer_type      = "sgd"
-    opt.momentum            = 0.937
+    opt.weight_decay    = 0
+    opt.optimizer_type      = "adam"
+    opt.momentum            = 0.9
     #------------------------------------------------------#
     #   是否提早結束。
     #------------------------------------------------------#

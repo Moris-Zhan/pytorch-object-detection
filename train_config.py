@@ -14,7 +14,14 @@ from trainer import Trainer
 def main():    
     # Load options
     parser = argparse.ArgumentParser(description='Attribute Learner')
-    parser.add_argument('--config', type=str, default="configs.ssd_base" # opts.B_pro_4_3
+    # parser.add_argument('--config', type=str, default="configs.ssd_base" 
+    # parser.add_argument('--config', type=str, default="configs.retina_base" 
+    # parser.add_argument('--config', type=str, default="configs.centernet_base" 
+    # parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" 
+    # parser.add_argument('--config', type=str, default="configs.yolov3_base" 
+    # parser.add_argument('--config', type=str, default="configs.yolov4_base" 
+    # parser.add_argument('--config', type=str, default="configs.yolov5_base" 
+    parser.add_argument('--config', type=str, default="configs.yolox_base" 
                         ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
     parser.add_argument("--local_rank", type=int, default=0, help="local_rank")    
     parser.add_argument("--distributed", type=bool, default=False, help="distributed")                       
@@ -30,7 +37,7 @@ def main():
     logging.info('===Options==') 
     d=vars(opt)
 
-    with open('commandline_args.txt', 'w') as f:        
+    with open(os.path.join(d["out_path"], 'commandline_args.txt'), 'w') as f:        
         for key, value in d.items():
             if key in ["train_lines", "val_lines"]: continue
             num_space = 25 - len(key)
