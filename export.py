@@ -9,24 +9,96 @@ import torch
 import torch.nn as nn
 from torch.utils.mobile_optimizer import optimize_for_mobile
 
+import os
+import platform
+import subprocess
+import time
+from contextlib import contextmanager
+from copy import deepcopy
+from pathlib import Path
+import datetime
+import logging
+
 import models
-from models.experimental import attempt_load, End2End
-from utils.activations import Hardswish, SiLU
-from utils.general import set_logging, check_img_size
-from utils.torch_utils import select_device
-from utils.add_nms import RegisterNMS
 import importlib
 import onnxruntime as ort
 import numpy as np
 import cv2
 from glob import glob
 import os
-from PIL import ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont, Image
+
+def set_logging(rank=-1):
+    logging.basicConfig(
+        format="%(message)s",
+        level=logging.INFO if rank in [-1, 0] else logging.WARN)
+
+def date_modified(path=__file__):
+    # return human-readable file modification date, i.e. '2021-3-26'
+    t = datetime.datetime.fromtimestamp(Path(path).stat().st_mtime)
+    return f'{t.year}-{t.month}-{t.day}'
+
+
+def git_describe(path=Path(__file__).parent):  # path must be a directory
+    # return human-readable git description, i.e. v5.0-5-g3e25f1e https://git-scm.com/docs/git-describe
+    s = f'git -C {path} describe --tags --long --always'
+    try:
+        return subprocess.check_output(s, shell=True, stderr=subprocess.STDOUT).decode()[:-1]
+    except subprocess.CalledProcessError as e:
+        return ''  # not a git repository
+
+def select_device(device='', batch_size=None):
+    # device = 'cpu' or '0' or '0,1,2,3'
+    s = f'YOLOR 🚀 {git_describe() or date_modified()} torch {torch.__version__} '  # string
+    cpu = device.lower() == 'cpu'
+    if cpu:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # force torch.cuda.is_available() = False
+    elif device:  # non-cpu device requested
+        os.environ['CUDA_VISIBLE_DEVICES'] = device  # set environment variable
+        assert torch.cuda.is_available(), f'CUDA unavailable, invalid device {device} requested'  # check availability
+
+    cuda = not cpu and torch.cuda.is_available()
+    if cuda:
+        n = torch.cuda.device_count()
+        if n > 1 and batch_size:  # check that batch_size is compatible with device_count
+            assert batch_size % n == 0, f'batch-size {batch_size} not multiple of GPU count {n}'
+        space = ' ' * len(s)
+        for i, d in enumerate(device.split(',') if device else range(n)):
+            p = torch.cuda.get_device_properties(i)
+            s += f"{'' if i == 0 else space}CUDA:{d} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
+    else:
+        s += 'CPU\n'
+
+    return torch.device('cuda:0' if cuda else 'cpu')
+
+class Post:
+    def __init__(self, opt):
+        super(Post, self).__init__()
+        if opt.net == "yolov5":
+            from det_model.yolov5.utils.utils_bbox import DecodeBox
+            self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.img_size, opt.anchors_mask)
+
+    def process(self, outputs):
+        if opt.net == "yolov5":
+            outputs = [torch.from_numpy(o) for o in outputs]
+            outputs = self.bbox_util.decode_box(outputs)
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, opt.img_size, 
+                                image_shape, False, conf_thres = 0.5, nms_thres = 0.3)
+            
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 6], dtype = 'int32')
+            top_conf    = results[0][:, 4] * results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+            return top_label, top_conf, top_boxes
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, 
-                        default='work_dirs\\lane_yolov5\\best_epoch_weights.pth', help='weights path')
+                        default='.//work_dirs//lane_yolov5//best_epoch_weights.pth', help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='image size')  # height, width
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
     parser.add_argument('--dynamic', default=True, action='store_true', help='dynamic ONNX axes')
@@ -71,7 +143,7 @@ if __name__ == '__main__':
         model.model[-1].include_nms = True
         y = None
 
-    if False:
+    if True:
         # ONNX export
         try:
             import onnx
@@ -163,24 +235,42 @@ if __name__ == '__main__':
         # Finish
         print('\nExport complete (%.2fs). Visualize with https://github.com/lutzroeder/netron.' % (time.time() - t))
 
-    # Test forward with onnx session (test image) 
-    for sample_image in glob("test_images/*.jpg") :
-        image = cv2.imread(sample_image)
-        image_shape = np.array(np.shape(image)[0:2])
 
-        f = "work_dirs\\lane_yolov5\\best_epoch_weights_simp.onnx"
-        ort_session = ort.InferenceSession(f)        
-        new_image       = cv2.resize(image, opt.img_size, interpolation=cv2.INTER_CUBIC)
+    # from det_model.yolov5.utils.utils_bbox import DecodeBox
+    # f = os.path.join("work_dirs", "lane_yolov5", "best_epoch_weights_simp.onnx")
+    ort_session = ort.InferenceSession(f)  
+
+    # Test forward with onnx session (test image) 
+    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet//LANEdevkit"
+    video_path      = os.path.join(root_path, "Drive-View-Kaohsiung-Taiwan.mp4")
+    capture = cv2.VideoCapture(video_path)
+
+    fourcc  = cv2.VideoWriter_fourcc(*'XVID')
+    size    = (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    ref, frame = capture.read()
+
+    fps = 0.0
+    drawline = False
+    post = Post(opt)
+
+    # for frame in glob("test_images/*.jpg") :
+    #     frame = cv2.imread(frame)
+
+    while(True):
+        t1 = time.time()
+        # 讀取某一幀
+        ref, frame = capture.read()
+        if not ref:
+            break
+        t1 = time.time()
+        image_shape = np.array(np.shape(frame)[0:2])              
+        new_image       = cv2.resize(frame, opt.img_size, interpolation=cv2.INTER_CUBIC)
         new_image       = np.expand_dims(np.transpose(np.array(new_image, dtype=np.float32)/255, (2, 0, 1)),0)
 
         outputs = ort_session.run(
-            None, # ['output']
+            None, 
             {"images": new_image},
         )
-
-        from det_model.yolov5.utils.utils_bbox import DecodeBox
-        bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.img_size, opt.anchors_mask)
-
         #---------------------------------------------------#
         #   画框设置不同的颜色
         #---------------------------------------------------#
@@ -188,23 +278,21 @@ if __name__ == '__main__':
         opt.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
         opt.colors = list(map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)), opt.colors))
 
-        outputs = [torch.from_numpy(o) for o in outputs]
-        outputs = bbox_util.decode_box(outputs)
-        results = bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, opt.img_size, 
-                            image_shape, False, conf_thres = 0.5, nms_thres = 0.3)
-
-        top_label   = np.array(results[0][:, 6], dtype = 'int32')
-        top_conf    = results[0][:, 4] * results[0][:, 5]
-        top_boxes   = results[0][:, :4]
-
+        top_label, top_conf, top_boxes = post.process(outputs)
+        if type(top_label) != np.ndarray: 
+            print("Not detected!!!")
+            continue 
         #---------------------------------------------------------#
         #   设置字体与边框厚度
         #---------------------------------------------------------#
-        font        = ImageFont.truetype(font='model_data/simhei.ttf', size=np.floor(3e-2 * image.shape[1] + 0.5).astype('int32'))
-        thickness   = int(max((image.shape[0] + image.shape[1]) // np.mean(opt.input_shape), 1))       
+        font        = ImageFont.truetype(font='model_data/simhei.ttf', size=np.floor(3e-2 * frame.shape[1] + 0.5).astype('int32'))
+        thickness   = int(max((frame.shape[0] + frame.shape[1]) // np.mean(opt.input_shape), 1))       
         #---------------------------------------------------------#
         #   图像绘制
         #---------------------------------------------------------#
+        frame = Image.fromarray(frame)
+        h, w = frame.size[:2]
+
         for i, c in list(enumerate(top_label)):
             predicted_class = opt.class_names[int(c)]
             box             = top_boxes[i]
@@ -214,11 +302,12 @@ if __name__ == '__main__':
 
             top     = max(0, np.floor(top).astype('int32'))
             left    = max(0, np.floor(left).astype('int32'))
-            bottom  = min(image.shape[1], np.floor(bottom).astype('int32'))
-            right   = min(image.shape[0], np.floor(right).astype('int32'))
+            
+            bottom  = min(h, np.floor(bottom).astype('int32'))
+            right   = min(w, np.floor(right).astype('int32'))
 
             label = '{} {:.2f}'.format(predicted_class, score)
-            draw = ImageDraw.Draw(image)
+            draw = ImageDraw.Draw(frame)
             label_size = draw.textsize(label, font)
             label = label.encode('utf-8')
             print(label, top, left, bottom, right)
@@ -233,8 +322,13 @@ if __name__ == '__main__':
             draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=opt.colors[c])
             draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
         
-        # RGBtoBGR滿足opencv顯示格式
-        frame = cv2.cvtColor(image,cv2.COLOR_RGB2BGR)
-        frame.show()
+        frame = np.array(frame)
+        fps  = ( fps + (1./(time.time()-t1)) ) / 2
+        print("fps= %.2f"%(fps))
+        frame = cv2.putText(frame, "fps= %.2f"%(fps), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-
+        cv2.imshow("video", frame)
+        c= cv2.waitKey(1) & 0xff 
+        if c==27:
+            capture.release()
+            break

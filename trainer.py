@@ -22,10 +22,10 @@ from functools import partial
 import importlib
 import threading
 from tqdm import tqdm
-from helps.utils import *
+from utils.helpers import *
 from models.script import get_fit_func
 import torch.distributed as dist
-
+from utils.utils_info import write_info
 
 class Trainer:
     def __init__(self, opt):
@@ -49,21 +49,18 @@ class Trainer:
             rank            = 0
 
         opt.local_rank = local_rank        
-        self.model, self.criterion  = models.get_model(opt)     
+        model, self.criterion  = models.get_model(opt)     
         # ------------------------------------------------------------------------------- 
+        # if opt.local_rank == 6:
+        print(f"[{os.getpid()}] (rank = {rank}, local_rank = {local_rank}) training...")
+        print("Gpu Device Count : ", ngpus_per_node)   
+        IM_SHAPE = (opt.batch_size, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1])
         rndm_input = torch.autograd.Variable(
             torch.rand(1, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]), 
             requires_grad = False).cpu()
-        opt.writer.add_graph(self.model, rndm_input) 
+        opt.writer.add_graph(model, rndm_input)         
 
-        f = io.StringIO()
-        with redirect_stdout(f):        
-            summary(self.model, (opt.batch_size, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]) )
-        lines = f.getvalue()
-
-        with open( os.path.join(opt.out_path, "model.txt") ,"w") as f:
-            [f.write(line) for line in lines]
-        print(lines) 
+        write_info(opt.out_path, model, IM_SHAPE, "model.txt")   
         # ------------------------------------------------------------------------------
         if opt.model_path != '':
             #------------------------------------------------------#
@@ -71,38 +68,16 @@ class Trainer:
             #------------------------------------------------------#
             print('Load weights {}.'.format(opt.model_path))
             device          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            model_dict      = self.model.state_dict()
+            model_dict      = model.state_dict()
             pretrained_dict = torch.load(opt.model_path, map_location = device)
             pretrained_dict = {k: v for k, v in pretrained_dict.items() if np.shape(model_dict[k]) == np.shape(v)}
             model_dict.update(pretrained_dict)
-            self.model.load_state_dict(model_dict)
+            model.load_state_dict(model_dict)
         # ------------------------------------------------------------------------------
-        # self.model = self.model.to(self.device)
+        # model.train()  
 
-        # if opt.ngpu>1:
-        #     self.model = nn.DataParallel(self.model)   
-
-        # if opt.distributed:
-        #     #----------------------------#
-        #     #   多卡平行运行
-        #     #----------------------------#
-        #     self.model = self.model.cuda(opt.local_rank)
-        #     self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[opt.local_rank], find_unused_parameters=True)
-        # else:
-        #     self.model_train = torch.nn.DataParallel(self.model)
-        #     cudnn.benchmark = True
-        #     self.model_train = self.model_train.cuda()
-
-        # self.model_train = self.model.train()
-        # if opt.Cuda:
-        #     self.model_train = torch.nn.DataParallel(self.model)
-        #     cudnn.benchmark = True
-        #     self.model_train = self.model_train.cuda()
-
-        # self.model.train()  
-
-        self.model_train = self.model.train()
-      
+        # self.model = model
+        model_train = model.train()      
         #-------------------------------------------------------------------#
         #   判断当前batch_size与64的差别，自适应调整学习率
         #-------------------------------------------------------------------#
@@ -110,7 +85,7 @@ class Trainer:
         opt.Init_lr_fit = max(opt.batch_size / nbs * opt.Init_lr, 1e-4)
         opt.Min_lr_fit  = max(opt.batch_size / nbs * opt.Min_lr, 1e-6)
 
-        self.optimizer = models.get_optimizer(self.model, opt, opt.optimizer_type)
+        self.optimizer = models.get_optimizer(model, opt, opt.optimizer_type)
         self.lr_scheduler_func = get_lr_scheduler(opt.lr_decay_type, opt.Init_lr_fit, opt.Min_lr_fit, opt.UnFreeze_Epoch)
 
         #---------------------------------------#
@@ -134,6 +109,7 @@ class Trainer:
         #------------------------------------------------------------------#
         #   torch 1.2不支持amp，建议使用torch 1.7.1及以上正确使用fp16
         #   因此torch1.2这里显示"could not be resolve"
+        #   torch.cuda.amp: 自動混合精度
         #------------------------------------------------------------------#
         if opt.fp16:
             from torch.cuda.amp import GradScaler as GradScaler
@@ -157,14 +133,16 @@ class Trainer:
                 model_train = model_train.cuda(local_rank)
                 model_train = torch.nn.parallel.DistributedDataParallel(model_train, device_ids=[local_rank], find_unused_parameters=True)
             else:
-                model_train = torch.nn.DataParallel(self.model)
+                model_train = torch.nn.DataParallel(model)
                 cudnn.benchmark = True
                 model_train = model_train.cuda()
-        
+
+        self.model = model
+        self.model_train = model_train        
         #----------------------------#
         #   权值平滑
         #----------------------------#
-        opt.ema = ModelEMA(model_train)
+        opt.ema = ModelEMA(self.model_train)
         self.opt = opt
         
     
