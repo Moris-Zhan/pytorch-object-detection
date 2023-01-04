@@ -7,7 +7,7 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
-from helps.choose_data import DataType, get_data
+from utils.choose_data import DataType, get_data
 
 # from det_model.yolox.yolo import YOLO as Model
 from det_model.yolov5.yolo import YOLO as Model
@@ -17,6 +17,7 @@ from det_model.yolov5.yolo import YOLO as Model
 # from det_model.faster_rcnn.frcnn import FRCNN as Model
 # from det_model.retinanet.retinanet import Retinanet as Model
 # from det_model.centernet.centernet import CenterNet as Model
+from glob import glob
 
 if __name__ == "__main__":
     root_path = "D://WorkSpace//JupyterWorkSpace//DataSet"
@@ -30,8 +31,8 @@ if __name__ == "__main__":
     #   'fps'表示測試fps，使用的圖片是img里面的street.jpg，詳情查看下方注釋。
     #   'dir_predict'表示遍歷文件夾進行檢測並保存。默認遍歷img文件夾，保存img_out文件夾，詳情查看下方注釋。
     #----------------------------------------------------------------------------------------------------------#
-    # mode = "predict"
-    mode = "video"
+    mode = "predict"
+    # mode = "video"
     #----------------------------------------------------------------------------------------------------------#
     #   video_path用於指定視頻的路徑，當video_path=0時表示檢測攝像頭
     #   想要檢測視頻，則設置如video_path = "xxx.mp4"即可，代表讀取出根目錄下的xxx.mp4文件。
@@ -70,8 +71,17 @@ if __name__ == "__main__":
         4、如果想要在預測圖上寫額外的字，比如檢測到的特定目標的數量，可以進入yolo.detect_image函數，在繪圖部分對predicted_class進行判斷，
         比如判斷if predicted_class == 'car': 即可判斷當前目標是否為車，然後記錄數量即可。利用draw.text即可寫字。
         '''
-        while True:
-            img = dir_origin_path + input('Input image filename:')
+        # while True:
+        #     img = dir_origin_path + input('Input image filename:')
+        #     try:
+        #         image = Image.open(img)
+        #     except:
+        #         print('Open Error! Try again!')
+        #         continue
+        #     else:
+        #         r_image = model.detect_image(image)
+        #         r_image.show()
+        for img in glob("test_images/*.jpg"):
             try:
                 image = Image.open(img)
             except:
@@ -79,6 +89,7 @@ if __name__ == "__main__":
                 continue
             else:
                 r_image = model.detect_image(image)
+                print(img)
                 r_image.show()
 
     elif mode == "video":
@@ -94,14 +105,18 @@ if __name__ == "__main__":
 
         fps = 0.0
         drawline = False
+        i = 0
         while(True):
             t1 = time.time()
             # 讀取某一幀
             ref, frame = capture.read()
             if not ref:
                 break
+
+            cv2.imwrite(f"test_images/{str(i)}.jpg", frame)
+
             # 格式轉變，BGRtoRGB
-            frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+            frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)            
             # 轉變成Image
             frame = Image.fromarray(np.uint8(frame))
             # 進行檢測            
@@ -134,6 +149,8 @@ if __name__ == "__main__":
                 frame = cv2.line(frame, (int(1280/5*2),0), (int(1280/5*2),720), color, thickness)
                 frame = cv2.line(frame, (int(1280/6*4),0), (int(1280/6*4),720), color, thickness)
             
+            cv2.imwrite(f"test_images/{i}_d.jpg", frame)
+            i+=1
             cv2.imshow("video",frame)
             c= cv2.waitKey(1) & 0xff 
             if video_save_path!="":

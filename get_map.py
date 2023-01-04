@@ -4,17 +4,17 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from tqdm import tqdm
 
-from det_model.yolox.yolo import YOLO as Model
+# from det_model.yolox.yolo import YOLO as Model
 # from det_model.yolov5.yolo import YOLO as Model
 # from det_model.yolov4.yolo import YOLO as Model
 # from det_model.yolov3.yolo import YOLO as Model
 # from det_model.ssd.ssd import SSD as Model
-# from det_model.faster_rcnn.frcnn import FRCNN as Model
 # from det_model.retinanet.retinanet import Retinanet as Model
-# from det_model.centernet.centernet import CenterNet as Model
+# from det_model.faster_rcnn.frcnn import FRCNN as Model
+from det_model.centernet.centernet import CenterNet as Model
 
-from helps.choose_model import ModelType, check_model
-from helps.choose_data import DataType, get_data
+from utils.choose_model import ModelType, check_model
+from utils.choose_data import DataType, get_data
 
 from glob import glob
 

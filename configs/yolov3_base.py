@@ -5,9 +5,9 @@ import argparse, os, json
 import torch
 import torchvision as tv
 from torch.utils.tensorboard import SummaryWriter
-from helps.tools import init_logging
+from utils.tools import init_logging
 import importlib
-from helps.utils import get_data_path, get_classes  
+from utils.helpers import get_data_path, get_classes  
 
    
 def get_opts():

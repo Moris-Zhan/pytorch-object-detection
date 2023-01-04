@@ -11,8 +11,8 @@ from det_model.ssd.ssd import SSD as Model
 # from det_model.retinanet.retinanet import Retinanet as Model
 # from det_model.centernet.centernet import CenterNet as Model
 
-from helps.choose_model import ModelType, check_model
-from helps.choose_data import DataType, get_data
+from utils.choose_model import ModelType, check_model
+from utils.choose_data import DataType, get_data
 import torch
 import cv2
 import onnx

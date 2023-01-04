@@ -5,12 +5,12 @@ import argparse, os, json
 import torch
 import torchvision as tv
 from torch.utils.tensorboard import SummaryWriter
-from helps.tools import init_logging
+from utils.tools import init_logging
 import importlib
-from helps.utils import get_data_path, get_classes  
+from utils.helpers import get_data_path, get_classes  
 
    
-def get_opts():
+def get_opts(Train=True):
     opt = argparse.Namespace()  
 
     #the train data, you need change.
@@ -74,7 +74,7 @@ def get_opts():
     #   Cosine_lr 余弦退火學習率 True or False
     #   label_smoothing 標簽平滑 0.01以下一般 如0.01、0.005
     #------------------------------------------------------#
-    opt.mosaic              = True    
+    opt.mosaic              = False    
     opt.Cosine_lr           = False
     opt.label_smoothing     = 0
     #----------------------------------------------------#
@@ -168,14 +168,12 @@ def get_opts():
     opt.log_batch_interval = 10
     opt.log_checkpoint = 10
     #############################################################################################
-
-    opt.out_path = os.path.join(opt.out_root, "{}_{}".format(opt.exp_name, opt.net))
-    opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
-    init_logging(0, opt.out_path)
-
-    
+    if Train:
+        opt.out_path = os.path.join(opt.out_root, "{}_{}".format(opt.exp_name, opt.net))
+        opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
+        init_logging(0, opt.out_path)    
  
     return opt
 
 if __name__ == "__main__":    
-    get_opts()
+    get_opts(Train=False)
