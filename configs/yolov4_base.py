@@ -51,8 +51,7 @@ def get_opts(Train=True):
 
     #############################################################################################    
     opt.net = 'yolov4'     # [centernet, faster_rcnn, retinanet, ssd, yolov3, yolov4, yolov5, yolox]
-    # opt.model_path      = 'model_data/weight/yolo4_weights.pth'
-    opt.model_path      = ''
+    opt.model_path      = 'model_data/weight/yolo4_weights.pth'
     opt.input_shape     = [416, 416]  
     opt.pretrained      = True
     opt.IM_SHAPE = (opt.input_shape[0], opt.input_shape[1], 3)
