@@ -114,7 +114,7 @@ class ResNet(nn.Module):
 def resnet50(pretrained = False):
     model = ResNet(Bottleneck, [3, 4, 6, 3])
     if pretrained:
-        state_dict = load_state_dict_from_url("https://download.pytorch.org/models/resnet50-19c8e357.pth", model_dir="model_data/weight")
+        state_dict = load_state_dict_from_url("https://download.pytorch.org/models/resnet50-19c8e357.pth", model_dir="./model_data/weight")
         model.load_state_dict(state_dict)
     #----------------------------------------------------------------------------#
     #   获取特征提取部分，从conv1到model.layer3，最终获得一个38,38,1024的特征层

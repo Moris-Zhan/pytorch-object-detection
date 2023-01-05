@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-
+from functools import partial
 
 def bbox_iou(bbox_a, bbox_b):
     if bbox_a.shape[1] != 4 or bbox_b.shape[1] != 4:
@@ -202,9 +202,9 @@ class ProposalTargetCreator(object):
         return sample_roi, gt_roi_loc, gt_roi_label
 
 class FasterRCNNTrainer(nn.Module):
-    def __init__(self, faster_rcnn, optimizer):
+    def __init__(self, model_train, optimizer):
         super(FasterRCNNTrainer, self).__init__()
-        self.faster_rcnn    = faster_rcnn
+        self.model_train    = model_train
         self.optimizer      = optimizer
 
         self.rpn_sigma      = 1
@@ -221,7 +221,7 @@ class FasterRCNNTrainer(nn.Module):
 
         sigma_squared = sigma ** 2
         regression_diff = (gt_loc - pred_loc)
-        regression_diff = regression_diff.abs()
+        regression_diff = regression_diff.abs().float()
         regression_loss = torch.where(
                 regression_diff < (1. / sigma_squared),
                 0.5 * sigma_squared * regression_diff ** 2,
@@ -239,42 +239,38 @@ class FasterRCNNTrainer(nn.Module):
         #-------------------------------#
         #   获取公用特征层
         #-------------------------------#
-        base_feature = self.faster_rcnn.extractor(imgs)
+        base_feature = self.model_train(imgs, mode = 'extractor')
 
         # -------------------------------------------------- #
         #   利用rpn网络获得调整参数、得分、建议框、先验框
         # -------------------------------------------------- #
-        rpn_locs, rpn_scores, rois, roi_indices, anchor = self.faster_rcnn.rpn(base_feature, img_size, scale)
-
-        rpn_loc_loss_all, rpn_cls_loss_all, roi_loc_loss_all, roi_cls_loss_all = 0, 0, 0, 0
+        rpn_locs, rpn_scores, rois, roi_indices, anchor = self.model_train(x = [base_feature, img_size], scale = scale, mode = 'rpn')
+        
+        rpn_loc_loss_all, rpn_cls_loss_all, roi_loc_loss_all, roi_cls_loss_all  = 0, 0, 0, 0
+        sample_rois, sample_indexes, gt_roi_locs, gt_roi_labels                 = [], [], [], []
         for i in range(n):
             bbox        = bboxes[i]
             label       = labels[i]
             rpn_loc     = rpn_locs[i]
             rpn_score   = rpn_scores[i]
-            roi         = rois[roi_indices == i]
-            feature     = base_feature[i]
-
+            roi         = rois[i]
             # -------------------------------------------------- #
             #   利用真实框和先验框获得建议框网络应该有的预测结果
             #   给每个先验框都打上标签
             #   gt_rpn_loc      [num_anchors, 4]
             #   gt_rpn_label    [num_anchors, ]
             # -------------------------------------------------- #
-            gt_rpn_loc, gt_rpn_label    = self.anchor_target_creator(bbox, anchor)
-            gt_rpn_loc                  = torch.Tensor(gt_rpn_loc)
-            gt_rpn_label                = torch.Tensor(gt_rpn_label).long()
-
-            if rpn_loc.is_cuda:
-                gt_rpn_loc = gt_rpn_loc.cuda()
-                gt_rpn_label = gt_rpn_label.cuda()
-
+            gt_rpn_loc, gt_rpn_label    = self.anchor_target_creator(bbox, anchor[0].cpu().numpy())
+            gt_rpn_loc                  = torch.Tensor(gt_rpn_loc).type_as(rpn_locs)
+            gt_rpn_label                = torch.Tensor(gt_rpn_label).type_as(rpn_locs).long()
             # -------------------------------------------------- #
             #   分别计算建议框网络的回归损失和分类损失
             # -------------------------------------------------- #
             rpn_loc_loss = self._fast_rcnn_loc_loss(rpn_loc, gt_rpn_loc, gt_rpn_label, self.rpn_sigma)
             rpn_cls_loss = F.cross_entropy(rpn_score, gt_rpn_label, ignore_index=-1)
   
+            rpn_loc_loss_all += rpn_loc_loss
+            rpn_cls_loss_all += rpn_cls_loss
             # ------------------------------------------------------ #
             #   利用真实框和建议框获得classifier网络应该有的预测结果
             #   获得三个变量，分别是sample_roi, gt_roi_loc, gt_roi_label
@@ -283,34 +279,34 @@ class FasterRCNNTrainer(nn.Module):
             #   gt_roi_label    [n_sample, ]
             # ------------------------------------------------------ #
             sample_roi, gt_roi_loc, gt_roi_label = self.proposal_target_creator(roi, bbox, label, self.loc_normalize_std)
-            sample_roi          = torch.Tensor(sample_roi)
-            gt_roi_loc          = torch.Tensor(gt_roi_loc)
-            gt_roi_label        = torch.Tensor(gt_roi_label).long()
-            sample_roi_index    = torch.zeros(len(sample_roi))
+            sample_rois.append(torch.Tensor(sample_roi).type_as(rpn_locs))
+            sample_indexes.append(torch.ones(len(sample_roi)).type_as(rpn_locs) * roi_indices[i][0])
+            gt_roi_locs.append(torch.Tensor(gt_roi_loc).type_as(rpn_locs))
+            gt_roi_labels.append(torch.Tensor(gt_roi_label).type_as(rpn_locs).long())
             
-            if feature.is_cuda:
-                sample_roi          = sample_roi.cuda()
-                sample_roi_index    = sample_roi_index.cuda()
-                gt_roi_loc          = gt_roi_loc.cuda()
-                gt_roi_label        = gt_roi_label.cuda()
-
-            roi_cls_loc, roi_score = self.faster_rcnn.head(torch.unsqueeze(feature, 0), sample_roi, sample_roi_index, img_size)
-
+        sample_rois     = torch.stack(sample_rois, dim=0)
+        sample_indexes  = torch.stack(sample_indexes, dim=0)
+        roi_cls_locs, roi_scores = self.model_train([base_feature, sample_rois, sample_indexes, img_size], mode = 'head')
+        for i in range(n):
             # ------------------------------------------------------ #
             #   根据建议框的种类，取出对应的回归预测结果
             # ------------------------------------------------------ #
-            n_sample = roi_cls_loc.size()[1]
+            n_sample = roi_cls_locs.size()[1]
+            
+            roi_cls_loc     = roi_cls_locs[i]
+            roi_score       = roi_scores[i]
+            gt_roi_loc      = gt_roi_locs[i]
+            gt_roi_label    = gt_roi_labels[i]
+            
             roi_cls_loc = roi_cls_loc.view(n_sample, -1, 4)
-            roi_loc = roi_cls_loc[torch.arange(0, n_sample), gt_roi_label]
+            roi_loc     = roi_cls_loc[torch.arange(0, n_sample), gt_roi_label]
 
             # -------------------------------------------------- #
             #   分别计算Classifier网络的回归损失和分类损失
             # -------------------------------------------------- #
             roi_loc_loss = self._fast_rcnn_loc_loss(roi_loc, gt_roi_loc, gt_roi_label.data, self.roi_sigma)
-            roi_cls_loss = nn.CrossEntropyLoss()(roi_score[0], gt_roi_label)
+            roi_cls_loss = nn.CrossEntropyLoss()(roi_score, gt_roi_label)
 
-            rpn_loc_loss_all += rpn_loc_loss
-            rpn_cls_loss_all += rpn_cls_loss
             roi_loc_loss_all += roi_loc_loss
             roi_cls_loss_all += roi_cls_loss
             
@@ -335,6 +331,7 @@ class FasterRCNNTrainer(nn.Module):
             scaler.scale(losses[-1]).backward()
             scaler.step(self.optimizer)
             scaler.update()
+            
         return losses
 
 def weights_init(net, init_type='normal', init_gain=0.02):
@@ -356,4 +353,40 @@ def weights_init(net, init_type='normal', init_gain=0.02):
             torch.nn.init.constant_(m.bias.data, 0.0)
     print('initialize network with %s type' % init_type)
     net.apply(init_func)
-    
+
+def get_lr_scheduler(lr_decay_type, lr, min_lr, total_iters, warmup_iters_ratio = 0.05, warmup_lr_ratio = 0.1, no_aug_iter_ratio = 0.05, step_num = 10):
+    def yolox_warm_cos_lr(lr, min_lr, total_iters, warmup_total_iters, warmup_lr_start, no_aug_iter, iters):
+        if iters <= warmup_total_iters:
+            # lr = (lr - warmup_lr_start) * iters / float(warmup_total_iters) + warmup_lr_start
+            lr = (lr - warmup_lr_start) * pow(iters / float(warmup_total_iters), 2) + warmup_lr_start
+        elif iters >= total_iters - no_aug_iter:
+            lr = min_lr
+        else:
+            lr = min_lr + 0.5 * (lr - min_lr) * (
+                1.0 + math.cos(math.pi* (iters - warmup_total_iters) / (total_iters - warmup_total_iters - no_aug_iter))
+            )
+        return lr
+
+    def step_lr(lr, decay_rate, step_size, iters):
+        if step_size < 1:
+            raise ValueError("step_size must above 1.")
+        n       = iters // step_size
+        out_lr  = lr * decay_rate ** n
+        return out_lr
+
+    if lr_decay_type == "cos":
+        warmup_total_iters  = min(max(warmup_iters_ratio * total_iters, 1), 3)
+        warmup_lr_start     = max(warmup_lr_ratio * lr, 1e-6)
+        no_aug_iter         = min(max(no_aug_iter_ratio * total_iters, 1), 15)
+        func = partial(yolox_warm_cos_lr ,lr, min_lr, total_iters, warmup_total_iters, warmup_lr_start, no_aug_iter)
+    else:
+        decay_rate  = (min_lr / lr) ** (1 / (step_num - 1))
+        step_size   = total_iters / step_num
+        func = partial(step_lr, lr, decay_rate, step_size)
+
+    return func
+
+def set_optimizer_lr(optimizer, lr_scheduler_func, epoch):
+    lr = lr_scheduler_func(epoch)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
