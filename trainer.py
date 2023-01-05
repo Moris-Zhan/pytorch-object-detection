@@ -27,10 +27,9 @@ from models.script import get_fit_func
 import torch.distributed as dist
 from utils.utils_info import write_info
 
+
 class Trainer:
-    def __init__(self, opt):
-        # self.opt = opt
-        # self.device = torch.device("cuda" if opt.ngpu else "cpu")
+    def __init__(self, opt):        
         #------------------------------------------------------#
         #   设置用到的显卡
         #------------------------------------------------------#
@@ -51,16 +50,13 @@ class Trainer:
         opt.local_rank = local_rank        
         model, self.criterion  = models.get_model(opt)     
         # ------------------------------------------------------------------------------- 
-        # if opt.local_rank == 6:
-        print(f"[{os.getpid()}] (rank = {rank}, local_rank = {local_rank}) training...")
-        print("Gpu Device Count : ", ngpus_per_node)   
-        IM_SHAPE = (opt.batch_size, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1])
-        rndm_input = torch.autograd.Variable(
-            torch.rand(1, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]), 
-            requires_grad = False).cpu()
-        opt.writer.add_graph(model, rndm_input)         
+        # IM_SHAPE = (opt.batch_size, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1])
+        # rndm_input = torch.autograd.Variable(
+        #     torch.rand(1, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]), 
+        #     requires_grad = False).cpu()
+        # opt.writer.add_graph(model, rndm_input) 
 
-        write_info(opt.out_path, model, IM_SHAPE, "model.txt")   
+        # write_info(opt.out_path, model, IM_SHAPE, "model.txt") 
         # ------------------------------------------------------------------------------
         if opt.model_path != '':
             #------------------------------------------------------#
@@ -109,7 +105,6 @@ class Trainer:
         #------------------------------------------------------------------#
         #   torch 1.2不支持amp，建议使用torch 1.7.1及以上正确使用fp16
         #   因此torch1.2这里显示"could not be resolve"
-        #   torch.cuda.amp: 自動混合精度
         #------------------------------------------------------------------#
         if opt.fp16:
             from torch.cuda.amp import GradScaler as GradScaler
@@ -144,14 +139,13 @@ class Trainer:
         #----------------------------#
         opt.ema = ModelEMA(self.model_train)
         self.opt = opt
-        
-    
+
     
     def train(self):
         # self.opt.Init_Epoch = 49
         if self.opt.net == 'faster_rcnn':
             from det_model.faster_rcnn.nets.frcnn_training import FasterRCNNTrainer
-            train_util      = FasterRCNNTrainer(self.model, self.optimizer) 
+            train_util      = FasterRCNNTrainer(self.model_train, self.optimizer) 
         if self.opt.Freeze_Train:
             #------------------------------------#
             #   凍結一定部分訓練

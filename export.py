@@ -28,28 +28,9 @@ from glob import glob
 import os
 from PIL import ImageDraw, ImageFont, Image
 
-def set_logging(rank=-1):
-    logging.basicConfig(
-        format="%(message)s",
-        level=logging.INFO if rank in [-1, 0] else logging.WARN)
-
-def date_modified(path=__file__):
-    # return human-readable file modification date, i.e. '2021-3-26'
-    t = datetime.datetime.fromtimestamp(Path(path).stat().st_mtime)
-    return f'{t.year}-{t.month}-{t.day}'
-
-
-def git_describe(path=Path(__file__).parent):  # path must be a directory
-    # return human-readable git description, i.e. v5.0-5-g3e25f1e https://git-scm.com/docs/git-describe
-    s = f'git -C {path} describe --tags --long --always'
-    try:
-        return subprocess.check_output(s, shell=True, stderr=subprocess.STDOUT).decode()[:-1]
-    except subprocess.CalledProcessError as e:
-        return ''  # not a git repository
-
-def select_device(device='', batch_size=None):
+def select_device(net, device='', batch_size=None):
     # device = 'cpu' or '0' or '0,1,2,3'
-    s = f'YOLOR 🚀 {git_describe() or date_modified()} torch {torch.__version__} '  # string
+    s = f'{net.upper()} 🚀 torch {torch.__version__} '  # string
     cpu = device.lower() == 'cpu'
     if cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # force torch.cuda.is_available() = False
@@ -68,22 +49,56 @@ def select_device(device='', batch_size=None):
             s += f"{'' if i == 0 else space}CUDA:{d} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
     else:
         s += 'CPU\n'
-
+    print(s)
     return torch.device('cuda:0' if cuda else 'cpu')
 
 class Post:
     def __init__(self, opt):
         super(Post, self).__init__()
-        if opt.net == "yolov5":
+        self.opt = opt
+        if opt.net == "yolox":
+            from det_model.yolox.utils.utils_bbox import decode_outputs, non_max_suppression
+            self.decode_outputs = decode_outputs
+            self.non_max_suppression = non_max_suppression
+        elif opt.net == "yolov5":
             from det_model.yolov5.utils.utils_bbox import DecodeBox
-            self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.img_size, opt.anchors_mask)
+            self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
+        elif opt.net == "yolov4":
+            from det_model.yolov4.utils.utils_bbox import DecodeBox
+            self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
+
+        elif opt.net == "yolov3":
+            from det_model.yolov3.utils.utils_bbox import DecodeBox
+            self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
+        elif opt.net == "faster_rcnn":
+            from det_model.faster_rcnn.utils.utils_bbox import DecodeBox
+            self.std    = torch.Tensor([0.1, 0.1, 0.2, 0.2]).repeat(opt.num_classes + 1)[None]
+            self.bbox_util  = DecodeBox(self.std, opt.num_classes)
+
+        elif opt.net == "centernet":
+            from det_model.centernet.utils.utils_bbox import decode_bbox, postprocess
+            self.decode_bbox = decode_bbox
+            self.postprocess = postprocess
+        elif opt.net == "retinanet":
+            from det_model.retinanet.utils.utils_bbox import decodebox, non_max_suppression
+            self.decodebox = decodebox
+            self.non_max_suppression = non_max_suppression
+        elif opt.net == "ssd":
+            from det_model.ssd.utils.utils_bbox import BBoxUtility
+            self.bbox_util = BBoxUtility(opt.num_classes)
 
     def process(self, outputs):
-        if opt.net == "yolov5":
+        if opt.net == "yolox":
+            #---------------------------------------------------------------------#
+            #   该变量用于控制是否使用letterbox_image对输入图像进行不失真的resize，
+            #   在多次测试后，发现关闭letterbox_image直接resize的效果更好
+            #---------------------------------------------------------------------#
+            letterbox_image = True
             outputs = [torch.from_numpy(o) for o in outputs]
-            outputs = self.bbox_util.decode_box(outputs)
-            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, opt.img_size, 
-                                image_shape, False, conf_thres = 0.5, nms_thres = 0.3)
+            outputs = self.decode_outputs(outputs, self.opt.input_shape)
+            results = self.non_max_suppression(outputs, self.opt.num_classes, self.opt.input_shape, 
+                        image_shape, letterbox_image, 
+                        conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
             
             if not type(results[0]) == np.ndarray: 
                 print("Not detected!!!")
@@ -92,46 +107,150 @@ class Post:
             top_label   = np.array(results[0][:, 6], dtype = 'int32')
             top_conf    = results[0][:, 4] * results[0][:, 5]
             top_boxes   = results[0][:, :4]
-            return top_label, top_conf, top_boxes
+
+        elif opt.net == "yolov5":
+            outputs = [torch.from_numpy(o) for o in outputs]
+            outputs = self.bbox_util.decode_box(outputs)
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, self.opt.input_shape, 
+                                image_shape, False, 
+                                conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
+            
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 6], dtype = 'int32')
+            top_conf    = results[0][:, 4] * results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+
+        elif opt.net == "yolov4":
+            outputs = [torch.from_numpy(o) for o in outputs]
+            outputs = self.bbox_util.decode_box(outputs)
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, self.opt.input_shape, 
+                                image_shape, False, 
+                                conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
+            
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 6], dtype = 'int32')
+            top_conf    = results[0][:, 4] * results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+
+        elif opt.net == "yolov3":
+            outputs = [torch.from_numpy(o) for o in outputs]
+            outputs = self.bbox_util.decode_box(outputs)
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, self.opt.input_shape, 
+                                image_shape, False, 
+                                conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
+            
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 6], dtype = 'int32')
+            top_conf    = results[0][:, 4] * results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+        elif opt.net == "faster_rcnn":
+            outputs = [torch.from_numpy(o) for o in outputs]
+            # roi_cls_locs, roi_scores, rois, _ = outputs
+            roi_cls_locs, roi_scores, rois = outputs[:4]
+            results = self.bbox_util.forward(roi_cls_locs, roi_scores, rois, self.opt.input_shape, self.opt.input_shape, 
+                                                    nms_iou = self.opt.iou_thres, confidence = self.opt.conf_thres)
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+                
+            top_label   = np.array(results[0][:, 5], dtype = 'int32')
+            top_conf    = results[0][:, 4]
+            top_boxes   = results[0][:, :4]
+
+        elif opt.net == "centernet":
+            letterbox_image = True
+            nms = True
+            outputs = [torch.from_numpy(o) for o in outputs]
+            outputs = self.decode_bbox(outputs[0], outputs[1], outputs[2], self.opt.conf_thres, False)
+            results = self.postprocess(outputs, nms, image_shape, self.opt.input_shape, letterbox_image, self.opt.iou_thres)
+
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 5], dtype = 'int32')
+            top_conf    = results[0][:, 4]
+            top_boxes   = results[0][:, :4]            
+
+        elif opt.net == "retinanet":
+            letterbox_image = True
+            # _, regression, classification, anchors = outputs
+            outputs = [torch.from_numpy(o) for o in outputs]
+            regression, classification, anchors = outputs[-3:]
+            outputs     = self.decodebox(regression, anchors, self.opt.input_shape)
+            results     = self.non_max_suppression(torch.cat([outputs, classification], axis=-1), self.opt.input_shape, 
+                                    image_shape, letterbox_image, conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
+               
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 5], dtype = 'int32')
+            top_conf    = results[0][:, 4]
+            top_boxes   = results[0][:, :4]
+        elif opt.net == "ssd":
+            letterbox_image = True
+            outputs = [torch.from_numpy(o) for o in outputs]
+            results     = self.bbox_util.decode_box(outputs, self.opt.anchors, image_shape, self.opt.input_shape, letterbox_image, 
+                                                    nms_iou = self.opt.iou_thres, confidence = self.opt.conf_thres)
+            #--------------------------------------#
+            #   如果没有检测到物体，则返回原图
+            #--------------------------------------#
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 4], dtype = 'int32')
+            top_conf    = results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+
+        return top_label, top_conf, top_boxes
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, 
-                        default='.//work_dirs//lane_yolov5//best_epoch_weights.pth', help='weights path')
-    parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='image size')  # height, width
+    # error
+    # parser.add_argument('--config', type=str, default="configs.yolov4_base" ,help = 'Path to config .opt file. ')
+    parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" ,help = 'Path to config .opt file. ')
+    
+    
+    parser.add_argument('--weights', type=str, default='best_epoch_weights.pth', help='weights path')
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
     parser.add_argument('--dynamic', default=True, action='store_true', help='dynamic ONNX axes')
     parser.add_argument('--dynamic-batch', action='store_true', help='dynamic batch onnx for tensorrt and onnx-runtime')
-    parser.add_argument('--grid', action='store_true', help='export Detect() layer grid')
     parser.add_argument('--end2end', action='store_true', help='export end2end onnx')
-    parser.add_argument('--max-wh', type=int, default=None, help='None for tensorrt nms, int value for onnx-runtime nms')
     parser.add_argument('--topk-all', type=int, default=100, help='topk objects for every images')
-    parser.add_argument('--iou-thres', type=float, default=0.45, help='iou threshold for NMS')
-    parser.add_argument('--conf-thres', type=float, default=0.25, help='conf threshold for NMS')
+    parser.add_argument('--iou-thres', type=float, default=0.5, help='iou threshold for NMS')
+    parser.add_argument('--conf-thres', type=float, default=0.3, help='conf threshold for NMS')
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--simplify', default=True, action='store_true', help='simplify onnx model')
-    parser.add_argument('--include-nms', action='store_true', help='export end2end onnx')
     parser.add_argument('--fp16', action='store_true', help='CoreML FP16 half-precision export')
-    parser.add_argument('--int8', action='store_true', help='CoreML INT8 quantization')
-    parser.add_argument('--config', type=str, default="configs.yolov5_base" ,help = 'Path to config .opt file. ')
 
     opt = parser.parse_args()
-    opt.img_size *= 2 if len(opt.img_size) == 1 else 1  # expand
     opt.dynamic = opt.dynamic and not opt.end2end
     opt.dynamic = False if opt.dynamic_batch else opt.dynamic
     conf = importlib.import_module(opt.config).get_opts(Train=False)
     for key, value in vars(conf).items():
         setattr(opt, key, value)
+    opt.weights = os.path.join(opt.out_path, opt.weights)
+
     # print(opt)
-    set_logging()
     t = time.time()
 
     # Load PyTorch model
-    device = select_device(opt.device)
+    device = select_device(opt.net, opt.device)
 
     # Input
-    img = torch.zeros(opt.batch_size, 3, *opt.img_size).to(device)  # image size(1,3,320,192) iDetection
+    img = torch.zeros(opt.batch_size, 3, *opt.input_shape).to(device)  # image size(1,3,320,192) iDetection
 
     print("Load model.")
     model, _  = models.get_model(opt)
@@ -139,9 +258,6 @@ if __name__ == '__main__':
     print("Load model done.") 
 
     y = model(img)  # dry run
-    if opt.include_nms:
-        model.model[-1].include_nms = True
-        y = None
 
     if True:
         # ONNX export
@@ -152,40 +268,11 @@ if __name__ == '__main__':
             f = opt.weights.replace('.pth', '.onnx')  # filename
             model.eval()
             output_names = ['classes', 'boxes'] if y is None else ['output']
+
             dynamic_axes = None
             if opt.dynamic:
                 dynamic_axes = {'images': {0: 'batch', 2: 'height', 3: 'width'},  # size(1,3,640,640)
-                'output': {0: 'batch', 2: 'y', 3: 'x'}}
-            if opt.dynamic_batch:
-                opt.batch_size = 'batch'
-                dynamic_axes = {
-                    'images': {
-                        0: 'batch',
-                    }, }
-                if opt.end2end and opt.max_wh is None:
-                    output_axes = {
-                        'num_dets': {0: 'batch'},
-                        'det_boxes': {0: 'batch'},
-                        'det_scores': {0: 'batch'},
-                        'det_classes': {0: 'batch'},
-                    }
-                else:
-                    output_axes = {
-                        'output': {0: 'batch'},
-                    }
-                dynamic_axes.update(output_axes)
-            if opt.grid:
-                if opt.end2end:
-                    print('\nStarting export end2end onnx model for %s...' % 'TensorRT' if opt.max_wh is None else 'onnxruntime')
-                    model = End2End(model,opt.topk_all,opt.iou_thres,opt.conf_thres,opt.max_wh,device,len(labels))
-                    if opt.end2end and opt.max_wh is None:
-                        output_names = ['num_dets', 'det_boxes', 'det_scores', 'det_classes']
-                        shapes = [opt.batch_size, 1, opt.batch_size, opt.topk_all, 4,
-                                opt.batch_size, opt.topk_all, opt.batch_size, opt.topk_all]
-                    else:
-                        output_names = ['output']
-                else:
-                    model.model[-1].concat = True
+                'output': {0: 'batch', 2: 'y', 3: 'x'}}            
 
             input_names = ['images']
             torch.onnx.export(model, img, f, verbose=False, opset_version=12, input_names=input_names,
@@ -195,11 +282,6 @@ if __name__ == '__main__':
             # Checks
             onnx_model = onnx.load(f)  # load onnx model
             onnx.checker.check_model(onnx_model)  # check onnx model
-
-            if opt.end2end and opt.max_wh is None:
-                for i in onnx_model.graph.output:
-                    for j in i.type.tensor_type.shape.dim:
-                        j.dim_param = str(shapes.pop(0))
 
             graph = onnx.helper.printable_graph(onnx_model.graph)
             # print(graph)  # print a human readable model         
@@ -223,11 +305,6 @@ if __name__ == '__main__':
             onnx.save(onnx_model, f)
             print('ONNX export success, saved as %s' % f)
 
-            if opt.include_nms:
-                print('Registering NMS plugin for ONNX...')
-                mo = RegisterNMS(f)
-                mo.register_nms()
-                mo.save(f)
 
         except Exception as e:
             print('ONNX export failure: %s' % e)
@@ -237,12 +314,11 @@ if __name__ == '__main__':
 
 
     # from det_model.yolov5.utils.utils_bbox import DecodeBox
-    # f = os.path.join("work_dirs", "lane_yolov5", "best_epoch_weights_simp.onnx")
+    f = os.path.join(opt.out_path, "best_epoch_weights_simp.onnx")
     ort_session = ort.InferenceSession(f)  
 
     # Test forward with onnx session (test image) 
-    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet//LANEdevkit"
-    video_path      = os.path.join(root_path, "Drive-View-Kaohsiung-Taiwan.mp4")
+    video_path      = os.path.join(opt.data_path, "Drive-View-Kaohsiung-Taiwan.mp4")
     capture = cv2.VideoCapture(video_path)
 
     fourcc  = cv2.VideoWriter_fourcc(*'XVID')
@@ -264,7 +340,7 @@ if __name__ == '__main__':
             break
         t1 = time.time()
         image_shape = np.array(np.shape(frame)[0:2])              
-        new_image       = cv2.resize(frame, opt.img_size, interpolation=cv2.INTER_CUBIC)
+        new_image       = cv2.resize(frame, opt.input_shape, interpolation=cv2.INTER_CUBIC)
         new_image       = np.expand_dims(np.transpose(np.array(new_image, dtype=np.float32)/255, (2, 0, 1)),0)
 
         outputs = ort_session.run(
@@ -281,7 +357,7 @@ if __name__ == '__main__':
         top_label, top_conf, top_boxes = post.process(outputs)
         if type(top_label) != np.ndarray: 
             print("Not detected!!!")
-            continue 
+            # continue 
         #---------------------------------------------------------#
         #   设置字体与边框厚度
         #---------------------------------------------------------#
@@ -293,35 +369,36 @@ if __name__ == '__main__':
         frame = Image.fromarray(frame)
         h, w = frame.size[:2]
 
-        for i, c in list(enumerate(top_label)):
-            predicted_class = opt.class_names[int(c)]
-            box             = top_boxes[i]
-            score           = top_conf[i]
+        if type(top_label) == np.ndarray:
+            for i, c in list(enumerate(top_label)):
+                predicted_class = opt.class_names[int(c)]
+                box             = top_boxes[i]
+                score           = top_conf[i]
 
-            top, left, bottom, right = box
+                top, left, bottom, right = box
 
-            top     = max(0, np.floor(top).astype('int32'))
-            left    = max(0, np.floor(left).astype('int32'))
+                top     = max(0, np.floor(top).astype('int32'))
+                left    = max(0, np.floor(left).astype('int32'))
+                
+                bottom  = min(h, np.floor(bottom).astype('int32'))
+                right   = min(w, np.floor(right).astype('int32'))
+
+                label = '{} {:.2f}'.format(predicted_class, score)
+                draw = ImageDraw.Draw(frame)
+                label_size = draw.textsize(label, font)
+                label = label.encode('utf-8')
+                print(label, top, left, bottom, right)
+                
+                if top - label_size[1] >= 0:
+                    text_origin = np.array([left, top - label_size[1]])
+                else:
+                    text_origin = np.array([left, top + 1])
+
+                for i in range(thickness):
+                    draw.rectangle([left + i, top + i, right - i, bottom - i], outline=opt.colors[c])
+                draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=opt.colors[c])
+                draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
             
-            bottom  = min(h, np.floor(bottom).astype('int32'))
-            right   = min(w, np.floor(right).astype('int32'))
-
-            label = '{} {:.2f}'.format(predicted_class, score)
-            draw = ImageDraw.Draw(frame)
-            label_size = draw.textsize(label, font)
-            label = label.encode('utf-8')
-            print(label, top, left, bottom, right)
-            
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
-            else:
-                text_origin = np.array([left, top + 1])
-
-            for i in range(thickness):
-                draw.rectangle([left + i, top + i, right - i, bottom - i], outline=opt.colors[c])
-            draw.rectangle([tuple(text_origin), tuple(text_origin + label_size)], fill=opt.colors[c])
-            draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
-        
         frame = np.array(frame)
         fps  = ( fps + (1./(time.time()-t1)) ) / 2
         print("fps= %.2f"%(fps))

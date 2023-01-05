@@ -1,15 +1,16 @@
-import argparse,json,random,os
+import argparse,random,os
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import torchvision as tv
 
 import logging
-import sys
 import importlib
-from torch.utils.tensorboard import SummaryWriter
 from trainer import Trainer
 
+
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+# os.environ["LOCAL_RANK"] = "6"
 
 def main():    
     # Load options
@@ -17,11 +18,11 @@ def main():
     # parser.add_argument('--config', type=str, default="configs.ssd_base" 
     # parser.add_argument('--config', type=str, default="configs.retina_base" 
     # parser.add_argument('--config', type=str, default="configs.centernet_base" 
-    # parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" 
+    parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" 
     # parser.add_argument('--config', type=str, default="configs.yolov3_base" 
     # parser.add_argument('--config', type=str, default="configs.yolov4_base" 
     # parser.add_argument('--config', type=str, default="configs.yolov5_base" 
-    parser.add_argument('--config', type=str, default="configs.yolox_base" 
+    # parser.add_argument('--config', type=str, default="configs.yolox_base" 
                         ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
     parser.add_argument("--local_rank", type=int, default=0, help="local_rank")    
     parser.add_argument("--distributed", type=bool, default=False, help="distributed")                       
@@ -77,3 +78,16 @@ def main():
 
 if __name__ == '__main__':
     main()    
+
+    # delete __pycache__ 
+    # find . | grep -E "(/__pycache__$|\.pyc$|\.pyo$)" | xargs rm -rf
+
+    # conda activate leyan_torch
+    # CUDA_VISIBLE_DEVICES=6,7 python train.py
+    # CUDA_VISIBLE_DEVICES=6,7 python -m torch.distributed.launch --nproc_per_node=2 train.py
+
+    # python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 \
+    #         --node_rank=6 --master_addr='127.0.0.1' --master_port=12581 train.py
+
+    # os.environ["MASTER_ADDR"] = "localhost"
+    # os.environ["MASTER_PORT"]="5678"

@@ -14,8 +14,9 @@ def get_opts(Train=True):
     opt = argparse.Namespace()  
 
     #the train data, you need change.
-    # opt.data_root = '/home/leyan/DataSet/'
-    opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
+    opt.data_root = '/home/leyan/DataSet/'
+    # opt.data_root = "/home/zimdytsai/leyan/DataSet"
+    # opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
   
     opt.out_root = 'work_dirs/'
     opt.exp_name = 'lane'
@@ -74,7 +75,7 @@ def get_opts(Train=True):
     #   Cosine_lr 余弦退火學習率 True or False
     #   label_smoothing 標簽平滑 0.01以下一般 如0.01、0.005
     #------------------------------------------------------#
-    opt.mosaic              = False    
+    opt.mosaic              = True    
     opt.Cosine_lr           = False
     opt.label_smoothing     = 0
     #----------------------------------------------------#
@@ -168,8 +169,8 @@ def get_opts(Train=True):
     opt.log_batch_interval = 10
     opt.log_checkpoint = 10
     #############################################################################################
+    opt.out_path = os.path.join(opt.out_root, "{}_{}".format(opt.exp_name, opt.net))
     if Train:
-        opt.out_path = os.path.join(opt.out_root, "{}_{}".format(opt.exp_name, opt.net))
         opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
         init_logging(0, opt.out_path)    
  

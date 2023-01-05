@@ -10,12 +10,12 @@ import importlib
 from utils.helpers import get_data_path, get_classes  
 
    
-def get_opts():
+def get_opts(Train=True):
     opt = argparse.Namespace()  
 
     #the train data, you need change.
-    # opt.data_root = '/home/leyan/DataSet/'
-    opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
+    opt.data_root = '/home/leyan/DataSet/'
+    # opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
   
     opt.out_root = 'work_dirs/'
     opt.exp_name = 'lane'
@@ -54,7 +54,7 @@ def get_opts():
     opt.model_path      = 'model_data/weight/voc_weights_resnet.pth'
     opt.input_shape     = [600, 600]  
     opt.backbone        = "resnet50"  #   vgg或者resnet50   
-    opt.pretrained      = False
+    opt.pretrained      = True
     opt.IM_SHAPE = (opt.input_shape[0], opt.input_shape[1], 3)
     #------------------------------------------------------#
     #   可用于设定先验框的大小，默认的anchors_size
@@ -64,8 +64,6 @@ def get_opts():
     #   比如anchors_size = [21, 45, 99, 153, 207, 261, 315]
     #------------------------------------------------------#
     opt.anchors_size    = [8, 16, 32]
-    # get_anchors = importlib.import_module("det_model.{}.utils.anchors".format(opt.net)).get_anchors
-    # opt.anchors = get_anchors(opt.input_shape, opt.anchors_size, opt.backbone)
     #------------------------------------------------------#
     #   Yolov4的tricks應用
     #   mosaic 馬賽克數據增強 True or False 
@@ -166,14 +164,12 @@ def get_opts():
     opt.log_batch_interval = 10
     opt.log_checkpoint = 10
     #############################################################################################
-
     opt.out_path = os.path.join(opt.out_root, "{}_{}".format(opt.exp_name, opt.net))
-    opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
-    init_logging(0, opt.out_path)
-
-    
+    if Train:
+        opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
+        init_logging(0, opt.out_path)    
  
     return opt
 
 if __name__ == "__main__":    
-    get_opts()
+    get_opts(Train=False)
