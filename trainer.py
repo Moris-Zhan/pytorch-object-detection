@@ -57,8 +57,6 @@ class Trainer:
             opt.writer.add_graph(model, rndm_input)         
 
             write_info(opt.out_path, model, IM_SHAPE, "model.txt")  
-            print("write_info") 
-        # exit(0)
         # ------------------------------------------------------------------------------
         if opt.model_path != '':
             #------------------------------------------------------#

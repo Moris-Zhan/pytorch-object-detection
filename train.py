@@ -14,13 +14,13 @@ from trainer import Trainer
 def main():    
     # Load options
     parser = argparse.ArgumentParser(description='Attribute Learner')
-    # parser.add_argument('--config', type=str, default="configs.ssd_base" 
+    parser.add_argument('--config', type=str, default="configs.ssd_base" 
     # parser.add_argument('--config', type=str, default="configs.retina_base" 
     # parser.add_argument('--config', type=str, default="configs.centernet_base" 
     # parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" 
     # parser.add_argument('--config', type=str, default="configs.yolov3_base" 
     # parser.add_argument('--config', type=str, default="configs.yolov4_base" 
-    parser.add_argument('--config', type=str, default="configs.yolov5_base" 
+    # parser.add_argument('--config', type=str, default="configs.yolov5_base" 
     # parser.add_argument('--config', type=str, default="configs.yolox_base" 
                         ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
     parser.add_argument("--local_rank", type=int, help="local_rank")    

@@ -14,8 +14,8 @@ def get_opts(Train=True):
     opt = argparse.Namespace()  
 
     #the train data, you need change.
-    opt.data_root = '/home/leyan/DataSet/'
-    # opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
+    # opt.data_root = '/home/leyan/DataSet/'
+    opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
   
     opt.out_root = 'work_dirs/'
     opt.exp_name = 'lane'
@@ -66,17 +66,27 @@ def get_opts(Train=True):
     #------------------------------------------------------#
     opt.anchors_path    = 'det_model/yolox/yolo_anchors.txt'
     opt.anchors_mask    = [[6, 7, 8], [3, 4, 5], [0, 1, 2]]    
-    #------------------------------------------------------#
-    #   Yolov4的tricks應用
-    #   mosaic 馬賽克數據增強 True or False 
-    #   實際測試時mosaic數據增強並不穩定，所以默認為False
-    #   Cosine_lr 余弦退火學習率 True or False
-    #   label_smoothing 標簽平滑 0.01以下一般 如0.01、0.005
-    #------------------------------------------------------#
-    opt.mosaic              = True    
+    #------------------------------------------------------------------#
+    #   mosaic              马赛克数据增强。
+    #   mosaic_prob         每个step有多少概率使用mosaic数据增强，默认50%。
+    #
+    #   mixup               是否使用mixup数据增强，仅在mosaic=True时有效。
+    #                       只会对mosaic增强后的图片进行mixup的处理。
+    #   mixup_prob          有多少概率在mosaic后使用mixup数据增强，默认50%。
+    #                       总的mixup概率为mosaic_prob * mixup_prob。
+    #
+    #   special_aug_ratio   参考YoloX，由于Mosaic生成的训练图片，远远脱离自然图片的真实分布。
+    #                       当mosaic=True时，本代码会在special_aug_ratio范围内开启mosaic。
+    #                       默认为前70%个epoch，100个世代会开启70个世代。
+    #------------------------------------------------------------------#
+    opt.mosaic              = True
+    opt.mosaic_prob         = 0.5
+    opt.mixup               = True
+    opt.mixup_prob          = 0.5
+    opt.special_aug_ratio   = 0.7
+    #------------------------------------------------------------------#
     opt.Cosine_lr           = False
     opt.label_smoothing     = 0
-    #----------------------------------------------------#
     #----------------------------------------------------#
     #   凍結階段訓練參數
     #   此時模型的主幹被凍結了，特征提取網絡不發生改變

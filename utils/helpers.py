@@ -126,9 +126,10 @@ class LossHistory():
         self.freeze = False
         self.log_dir = opt.out_path
        
-        # launch tensorboard
-        t = threading.Thread(target=self.launchTensorBoard, args=([opt.out_path]))
-        t.start()     
+        if opt.local_rank == 0:
+            # launch tensorboard
+            t = threading.Thread(target=self.launchTensorBoard, args=([opt.out_path]))
+            t.start()       
 
         # initial EarlyStopping
         self.patience = patience
