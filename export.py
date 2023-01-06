@@ -219,8 +219,8 @@ class Post:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # error
-    # parser.add_argument('--config', type=str, default="configs.yolov4_base" ,help = 'Path to config .opt file. ')
-    parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" ,help = 'Path to config .opt file. ')
+    parser.add_argument('--config', type=str, default="configs.yolov5_base" ,help = 'Path to config .opt file. ')
+    # parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" ,help = 'Path to config .opt file. ')
     
     
     parser.add_argument('--weights', type=str, default='best_epoch_weights.pth', help='weights path')
@@ -253,7 +253,7 @@ if __name__ == '__main__':
     img = torch.zeros(opt.batch_size, 3, *opt.input_shape).to(device)  # image size(1,3,320,192) iDetection
 
     print("Load model.")
-    model, _  = models.get_model(opt)
+    model, _  = models.get_model(opt, pred=True)
     model.load_state_dict(torch.load(opt.weights, map_location=device))
     print("Load model done.") 
 
@@ -275,7 +275,8 @@ if __name__ == '__main__':
                 'output': {0: 'batch', 2: 'y', 3: 'x'}}            
 
             input_names = ['images']
-            torch.onnx.export(model, img, f, verbose=False, opset_version=12, input_names=input_names,
+            # torch.onnx.export(model, img, f, verbose=False, opset_version=12, input_names=input_names,
+            torch.onnx.export(model, img, f, verbose=False, opset_version=14, input_names=input_names,
                             output_names=output_names,
                             dynamic_axes=dynamic_axes)
 
@@ -308,13 +309,15 @@ if __name__ == '__main__':
 
         except Exception as e:
             print('ONNX export failure: %s' % e)
+            exit(-1)
 
         # Finish
         print('\nExport complete (%.2fs). Visualize with https://github.com/lutzroeder/netron.' % (time.time() - t))
 
 
     # from det_model.yolov5.utils.utils_bbox import DecodeBox
-    f = os.path.join(opt.out_path, "best_epoch_weights_simp.onnx")
+    # f = os.path.join(opt.out_path, "best_epoch_weights_simp.onnx")
+    f = os.path.join(opt.out_path, "best_epoch_weights.onnx")
     ort_session = ort.InferenceSession(f)  
 
     # Test forward with onnx session (test image) 
@@ -345,8 +348,10 @@ if __name__ == '__main__':
 
         outputs = ort_session.run(
             None, 
-            {"images": new_image},
+            {"images": new_image
+             },
         )
+       
         #---------------------------------------------------#
         #   画框设置不同的颜色
         #---------------------------------------------------#

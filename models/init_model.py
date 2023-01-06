@@ -21,15 +21,15 @@ def weights_init(net, init_type='normal', init_gain = 0.02):
         elif classname.find('BatchNorm2d') != -1:
             torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
             torch.nn.init.constant_(m.bias.data, 0.0)
-    print('initialize network with %s type' % init_type)
+    # print('initialize network with %s type' % init_type)
     net.apply(init_func)
 
-def get_model(opt):  
-    model = init_dt_model(opt)
+def get_model(opt, pred=False):  
+    model = init_dt_model(opt, pred)
     criterion = init_loss(opt)   
     return model, criterion
 
-def init_dt_model(opt):
+def init_dt_model(opt, pred=False):
     if opt.net == 'ssd':
         from det_model.ssd.nets.ssd import SSD300
         model = SSD300(opt.num_classes, opt.backbone, opt.pretrained)
@@ -41,7 +41,11 @@ def init_dt_model(opt):
         model = CenterNet_Resnet50(opt.num_classes, opt.pretrained)
     elif opt.net == 'faster_rcnn':
         from det_model.faster_rcnn.nets.frcnn import FasterRCNN 
-        model = FasterRCNN(opt.num_classes, anchor_scales = opt.anchors_size, backbone = opt.backbone, pretrained = opt.pretrained)
+        if pred:
+            model = FasterRCNN(opt.num_classes, "predict", anchor_scales = opt.anchors_size, backbone = opt.backbone)
+        else:
+            model = FasterRCNN(opt.num_classes, anchor_scales = opt.anchors_size, backbone = opt.backbone, pretrained = opt.pretrained)
+
     elif opt.net == 'yolov3':
         from det_model.yolov3.nets.yolo import YoloBody
         model = YoloBody(opt.anchors_mask, opt.num_classes)
@@ -130,8 +134,13 @@ def generate_loader(opt):
         dataset_collate = yolo_dataset_collate
     elif opt.net == 'yolov5':
         from det_model.yolov5.utils.dataloader import YoloDataset, yolo_dataset_collate
-        train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = True)
-        val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = False)
+        print("funck you")
+        # train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = True)
+        # val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = False)
+        train_dataset   = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, opt.anchors, opt.anchors_mask, epoch_length=opt.UnFreeze_Epoch, \
+                                        mosaic=opt.mosaic, mixup=opt.mixup, mosaic_prob=opt.mosaic_prob, mixup_prob=opt.mixup_prob, train=True, special_aug_ratio=0.2)
+        val_dataset     = YoloDataset(opt.train_lines, opt.input_shape, opt.num_classes, opt.anchors, opt.anchors_mask, epoch_length=opt.UnFreeze_Epoch, \
+                                        mosaic=opt.mosaic, mixup=opt.mixup, mosaic_prob=0, mixup_prob=0, train=False, special_aug_ratio=0)
         dataset_collate = yolo_dataset_collate
     elif opt.net == 'yolox':
         from det_model.yolox.utils.dataloader import YoloDataset, yolo_dataset_collate
@@ -139,15 +148,15 @@ def generate_loader(opt):
         val_dataset     = YoloDataset(opt.val_lines, opt.input_shape, opt.num_classes, epoch_length = opt.UnFreeze_Epoch, mosaic=opt.mosaic, train = False)
         dataset_collate = yolo_dataset_collate
 
+    batch_size      = opt.batch_size
     if opt.distributed:
         train_sampler   = torch.utils.data.distributed.DistributedSampler(train_dataset, shuffle=True,)
         val_sampler     = torch.utils.data.distributed.DistributedSampler(val_dataset, shuffle=False,)
-        batch_size      = opt.batch_size // opt.ngpus_per_node
+        batch_size      = batch_size // opt.ngpus_per_node
         shuffle         = False
     else:
         train_sampler   = None
         val_sampler     = None
-        batch_size      = opt.batch_size
         shuffle         = True
 
     gen             = torch.utils.data.DataLoader(train_dataset, shuffle = shuffle, batch_size = batch_size, num_workers = opt.num_workers, pin_memory=True,

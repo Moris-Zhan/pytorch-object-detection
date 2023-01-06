@@ -14,8 +14,8 @@ def get_opts(Train=True):
     opt = argparse.Namespace()  
 
     #the train data, you need change.
-    opt.data_root = '/home/leyan/DataSet/'
-    # opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
+    # opt.data_root = '/home/leyan/DataSet/'
+    opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
   
     opt.out_root = 'work_dirs/'
     opt.exp_name = 'lane'

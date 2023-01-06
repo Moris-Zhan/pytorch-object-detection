@@ -47,22 +47,24 @@ class Trainer:
             local_rank      = 0
             rank            = 0
 
-        opt.local_rank = local_rank        
-        model, self.criterion  = models.get_model(opt)     
+        model, self.criterion  = models.get_model(opt)  
         # ------------------------------------------------------------------------------- 
-        # IM_SHAPE = (opt.batch_size, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1])
-        # rndm_input = torch.autograd.Variable(
-        #     torch.rand(1, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]), 
-        #     requires_grad = False).cpu()
-        # opt.writer.add_graph(model, rndm_input) 
+        if local_rank == 0:           
+            IM_SHAPE = (opt.batch_size, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1])
+            rndm_input = torch.autograd.Variable(
+                torch.rand(1, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]), 
+                requires_grad = False).cpu()
+            opt.writer.add_graph(model, rndm_input)         
 
-        # write_info(opt.out_path, model, IM_SHAPE, "model.txt") 
+            write_info(opt.out_path, model, IM_SHAPE, "model.txt")  
+            print("write_info") 
+        # exit(0)
         # ------------------------------------------------------------------------------
         if opt.model_path != '':
             #------------------------------------------------------#
             #   權值文件請看README，百度網盤下載
             #------------------------------------------------------#
-            print('Load weights {}.'.format(opt.model_path))
+            if local_rank == 0:  print('Load weights {}.'.format(opt.model_path))
             device          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             model_dict      = model.state_dict()
             pretrained_dict = torch.load(opt.model_path, map_location = device)
@@ -105,6 +107,7 @@ class Trainer:
         #------------------------------------------------------------------#
         #   torch 1.2不支持amp，建议使用torch 1.7.1及以上正确使用fp16
         #   因此torch1.2这里显示"could not be resolve"
+        #   torch.cuda.amp: 自動混合精度
         #------------------------------------------------------------------#
         if opt.fp16:
             from torch.cuda.amp import GradScaler as GradScaler
@@ -138,6 +141,7 @@ class Trainer:
         #   权值平滑
         #----------------------------#
         opt.ema = ModelEMA(self.model_train)
+        opt.local_rank = local_rank
         self.opt = opt
 
     
