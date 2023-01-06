@@ -156,6 +156,7 @@ python train.py
 * setup distribute training
 ```python
 python -m torch.distributed.launch --nproc_per_node=8 train.py
+CUDA_VISIBLE_DEVICES=6,7 python -m torch.distributed.launch --nproc_per_node=2 train.py
 ```
 
 ### 4. Evaluate  (get_map) 
