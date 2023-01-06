@@ -170,6 +170,7 @@ python predict.py
 - PyTorch-YOLOv3 : https://github.com/bubbliiiing/yolo3-pytorch
 - PyTorch_YOLOv4 : https://github.com/bubbliiiing/yolov4-pytorch
 - PyTorch_YOLOv5 : https://github.com/bubbliiiing/yolov5-pytorch
+- PyTorch_YOLOv7 : https://github.com/bubbliiiing/yolov7-pytorch
 - PyTorch_YOLOX : https://github.com/bubbliiiing/yolox-pytorch
 - SSD: https://github.com/bubbliiiing/ssd-pytorch
 - RetinaNet: https://github.com/bubbliiiing/retinanet-pytorch
