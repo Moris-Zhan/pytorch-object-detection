@@ -112,6 +112,7 @@ In addition, existing open data sets for object detection in ADAS applications u
 - YOLOv3
 - YOLOv4
 - YOLOv5
+- YOLOv7
 - YOLOX
 - SSD
 - RetinaNet
@@ -152,6 +153,11 @@ pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable
 python train.py
 ```
 
+* setup distribute training
+```python
+python -m torch.distributed.launch --nproc_per_node=8 train.py
+```
+
 ### 4. Evaluate  (get_map) 
 * setup your `root_path` , choose `DataType` and switch detection model library import.
 * setup your `model_path` and `classes_path` in `model/model.py`
@@ -176,3 +182,4 @@ python predict.py
 - RetinaNet: https://github.com/bubbliiiing/retinanet-pytorch
 - CenterNet: https://github.com/bubbliiiing/centernet-pytorch
 - FasterRCNN: https://github.com/bubbliiiing/faster-rcnn-pytorch
+
