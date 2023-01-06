@@ -93,8 +93,7 @@ class YoloDataset(Dataset):
                 image, box      = self.get_random_data_with_MixUp(image, box, image_2, box_2)
         else:
             image, box      = self.get_random_data(index)
-
-        
+                    
         image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
         box[:, :-1] = xyxy2xywhn(box[:, :-1], w=self.input_shape[1], h=self.input_shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
         if len(box) != 0:

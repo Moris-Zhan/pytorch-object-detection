@@ -25,8 +25,8 @@ class YOLO(object):
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #   所使用的YoloX的版本。nano、tiny、s、m、l、x
         #--------------------------------------------------------------------------#
-        "phi"               : 'l',
-        "model_path"        : 'logs\YoloX\ep066-loss5.202-val_loss5.005.pth', # poor
+        "phi"               : 's',
+        "model_path"        : 'work_dirs/lane_yolox/best_epoch_weights.pth', # poor
         # "classes_path"      : 'model_data/coco_classes.txt',
         #---------------------------------------------------------------------#
         #   输入图片的大小，必须为32的倍数。

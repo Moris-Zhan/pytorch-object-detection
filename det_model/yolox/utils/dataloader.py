@@ -40,18 +40,23 @@ def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
     return y
 
 class YoloDataset(Dataset):
-    def __init__(self, annotation_lines, input_shape, num_classes, epoch_length, mosaic, train, mosaic_ratio = 0.7):
+    def __init__(self, annotation_lines, input_shape, num_classes, epoch_length, \
+                        mosaic, mixup, mosaic_prob, mixup_prob, train, special_aug_ratio = 0.7):
         super(YoloDataset, self).__init__()
         self.annotation_lines   = annotation_lines
         self.input_shape        = input_shape
         self.num_classes        = num_classes
         self.epoch_length       = epoch_length
         self.mosaic             = mosaic
+        self.mosaic_prob        = mosaic_prob
+        self.mixup              = mixup
+        self.mixup_prob         = mixup_prob
         self.train              = train
-        self.mosaic_ratio       = mosaic_ratio
+        self.special_aug_ratio  = special_aug_ratio
 
         self.epoch_now          = -1
         self.length             = len(self.annotation_lines)
+
         self.albumentations = Albumentations(self.input_shape, self.train) 
 
     def __len__(self):
@@ -64,17 +69,31 @@ class YoloDataset(Dataset):
         #   训练时进行数据的随机增强
         #   验证时不进行数据的随机增强
         #---------------------------------------------------#
-        if self.mosaic:
-            if self.rand() < 0.5 and self.epoch_now < self.epoch_length * self.mosaic_ratio:
-                new_image, new_boxes = self.get_random_data_with_Mosaic(index)              
-            else:
-                new_image, new_boxes = self.get_random_data(index)   
-        else:                
-            new_image, new_boxes = self.get_random_data(index)  
-        new_image       = np.transpose(preprocess_input(np.array(new_image, dtype=np.float32)), (2, 0, 1))
-        new_boxes[:, :-1] = xyxy2xywhn(new_boxes[:, :-1], w=self.input_shape[1], h=self.input_shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
+        # if self.mosaic:
+        #     if self.rand() < 0.5 and self.epoch_now < self.epoch_length * self.mosaic_ratio:
+        #         image, box = self.get_random_data_with_Mosaic(index)              
+        #     else:
+        #         image, box = self.get_random_data(index)   
+        # else:                
+        #     image, box = self.get_random_data(index)  
 
-        return new_image, new_boxes  
+        if self.mosaic and self.rand() < self.mosaic_prob and self.epoch_now < self.epoch_length * self.special_aug_ratio:
+            # lines = sample(self.annotation_lines, 3)
+            # lines.append(self.annotation_lines[index])
+            # shuffle(lines)
+            image, box  = self.get_random_data_with_Mosaic(index) 
+            
+            if self.mixup and self.rand() < self.mixup_prob:
+                # lines           = sample(self.annotation_lines, 1)
+                image_2, box_2  = self.get_random_data(index) 
+                image, box      = self.get_random_data_with_MixUp(image, box, image_2, box_2)
+        else:
+            image, box      = self.get_random_data(index) 
+
+        image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
+        box[:, :-1] = xyxy2xywhn(box[:, :-1], w=self.input_shape[1], h=self.input_shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
+
+        return image, box  
 
     def rand(self, a=0, b=1):
         return np.random.rand()*(b-a) + a
@@ -255,6 +274,116 @@ class YoloDataset(Dataset):
 
         new_anno = np.array(new_anno)
         return output_img, new_anno  
+    
+    def get_target(self, targets):
+        #-----------------------------------------------------------#
+        #   一共有三个特征层数
+        #-----------------------------------------------------------#
+        num_layers  = len(self.anchors_mask)
+        
+        input_shape = np.array(self.input_shape, dtype='int32')
+        grid_shapes = [input_shape // {0:32, 1:16, 2:8, 3:4}[l] for l in range(num_layers)]
+        y_true      = [np.zeros((len(self.anchors_mask[l]), grid_shapes[l][0], grid_shapes[l][1], self.bbox_attrs), dtype='float32') for l in range(num_layers)]
+        box_best_ratio = [np.zeros((len(self.anchors_mask[l]), grid_shapes[l][0], grid_shapes[l][1]), dtype='float32') for l in range(num_layers)]
+        
+        if len(targets) == 0:
+            return y_true
+        
+        for l in range(num_layers):
+            in_h, in_w      = grid_shapes[l]
+            anchors         = np.array(self.anchors) / {0:32, 1:16, 2:8, 3:4}[l]
+            
+            batch_target = np.zeros_like(targets)
+            #-------------------------------------------------------#
+            #   计算出正样本在特征层上的中心点
+            #-------------------------------------------------------#
+            batch_target[:, [0,2]]  = targets[:, [0,2]] * in_w
+            batch_target[:, [1,3]]  = targets[:, [1,3]] * in_h
+            batch_target[:, 4]      = targets[:, 4]
+            #-------------------------------------------------------#
+            #   wh                          : num_true_box, 2
+            #   np.expand_dims(wh, 1)       : num_true_box, 1, 2
+            #   anchors                     : 9, 2
+            #   np.expand_dims(anchors, 0)  : 1, 9, 2
+            #   
+            #   ratios_of_gt_anchors代表每一个真实框和每一个先验框的宽高的比值
+            #   ratios_of_gt_anchors    : num_true_box, 9, 2
+            #   ratios_of_anchors_gt代表每一个先验框和每一个真实框的宽高的比值
+            #   ratios_of_anchors_gt    : num_true_box, 9, 2
+            #
+            #   ratios                  : num_true_box, 9, 4
+            #   max_ratios代表每一个真实框和每一个先验框的宽高的比值的最大值
+            #   max_ratios              : num_true_box, 9
+            #-------------------------------------------------------#
+            ratios_of_gt_anchors = np.expand_dims(batch_target[:, 2:4], 1) / np.expand_dims(anchors, 0)
+            ratios_of_anchors_gt = np.expand_dims(anchors, 0) / np.expand_dims(batch_target[:, 2:4], 1)
+            ratios               = np.concatenate([ratios_of_gt_anchors, ratios_of_anchors_gt], axis = -1)
+            max_ratios           = np.max(ratios, axis = -1)
+            
+            for t, ratio in enumerate(max_ratios):
+                #-------------------------------------------------------#
+                #   ratio : 9
+                #-------------------------------------------------------#
+                over_threshold = ratio < self.threshold
+                over_threshold[np.argmin(ratio)] = True
+                for k, mask in enumerate(self.anchors_mask[l]):
+                    if not over_threshold[mask]:
+                        continue
+                    #----------------------------------------#
+                    #   获得真实框属于哪个网格点
+                    #   x  1.25     => 1
+                    #   y  3.75     => 3
+                    #----------------------------------------#
+                    i = int(np.floor(batch_target[t, 0]))
+                    j = int(np.floor(batch_target[t, 1]))
+                    
+                    offsets = self.get_near_points(batch_target[t, 0], batch_target[t, 1], i, j)
+                    for offset in offsets:
+                        local_i = i + offset[0]
+                        local_j = j + offset[1]
+
+                        if local_i >= in_w or local_i < 0 or local_j >= in_h or local_j < 0:
+                            continue
+
+                        if box_best_ratio[l][k, local_j, local_i] != 0:
+                            if box_best_ratio[l][k, local_j, local_i] > ratio[mask]:
+                                y_true[l][k, local_j, local_i, :] = 0
+                            else:
+                                continue
+                            
+                        #----------------------------------------#
+                        #   取出真实框的种类
+                        #----------------------------------------#
+                        c = int(batch_target[t, 4])
+
+                        #----------------------------------------#
+                        #   tx、ty代表中心调整参数的真实值
+                        #----------------------------------------#
+                        y_true[l][k, local_j, local_i, 0] = batch_target[t, 0]
+                        y_true[l][k, local_j, local_i, 1] = batch_target[t, 1]
+                        y_true[l][k, local_j, local_i, 2] = batch_target[t, 2]
+                        y_true[l][k, local_j, local_i, 3] = batch_target[t, 3]
+                        y_true[l][k, local_j, local_i, 4] = 1
+                        y_true[l][k, local_j, local_i, c + 5] = 1
+                        #----------------------------------------#
+                        #   获得当前先验框最好的比例
+                        #----------------------------------------#
+                        box_best_ratio[l][k, local_j, local_i] = ratio[mask]
+                        
+        return y_true
+
+    def get_random_data_with_MixUp(self, image_1, box_1, image_2, box_2):
+        new_image = np.array(image_1, np.float32) * 0.5 + np.array(image_2, np.float32) * 0.5
+        if len(box_1) == 0:
+            new_boxes = box_2
+        elif len(box_2) == 0:
+            new_boxes = box_1
+        else:
+            new_boxes = np.concatenate([box_1, box_2], axis=0)
+        return new_image, new_boxes
+
+    
+
 
 # DataLoader中collate_fn使用
 def yolo_dataset_collate(batch):

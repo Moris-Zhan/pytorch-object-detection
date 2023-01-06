@@ -40,14 +40,22 @@ def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
     return y
 
 class YoloDataset(Dataset):
-    def __init__(self, annotation_lines, input_shape, num_classes, mosaic, train):
+    def __init__(self, annotation_lines, input_shape, num_classes, epoch_length, \
+                        mosaic, mixup, mosaic_prob, mixup_prob, train, special_aug_ratio = 0.7):
         super(YoloDataset, self).__init__()
         self.annotation_lines   = annotation_lines
         self.input_shape        = input_shape
         self.num_classes        = num_classes
-        self.length             = len(self.annotation_lines)
+        self.epoch_length       = epoch_length
         self.mosaic             = mosaic
+        self.mosaic_prob        = mosaic_prob
+        self.mixup              = mixup
+        self.mixup_prob         = mixup_prob
         self.train              = train
+        self.special_aug_ratio  = special_aug_ratio
+
+        self.epoch_now          = -1
+        self.length             = len(self.annotation_lines)
         self.albumentations = Albumentations(self.input_shape, self.train) 
 
     def __len__(self):
@@ -60,18 +68,31 @@ class YoloDataset(Dataset):
         #   验证时不进行数据的随机增强
         #   mosaic albumentations Ver.
         #---------------------------------------------------#       
-        if self.mosaic and self.train:
-            if self.rand() < 0.5:
-                new_image, new_boxes = self.get_random_data_with_Mosaic(index)              
-            else:
-                new_image, new_boxes = self.get_random_data(index)                
-        else:                
-            new_image, new_boxes = self.get_random_data(index)  
+       # if self.mosaic:
+        #     if self.rand() < 0.5 and self.epoch_now < self.epoch_length * self.mosaic_ratio:
+        #         image, box = self.get_random_data_with_Mosaic(index)              
+        #     else:
+        #         image, box = self.get_random_data(index)   
+        # else:                
+        #     image, box = self.get_random_data(index)  
 
-        new_image       = np.transpose(preprocess_input(np.array(new_image, dtype=np.float32)), (2, 0, 1))
-        new_boxes[:, :-1] = xyxy2xywhn(new_boxes[:, :-1], w=self.input_shape[1], h=self.input_shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
+        if self.mosaic and self.rand() < self.mosaic_prob and self.epoch_now < self.epoch_length * self.special_aug_ratio:
+            # lines = sample(self.annotation_lines, 3)
+            # lines.append(self.annotation_lines[index])
+            # shuffle(lines)
+            image, box  = self.get_random_data_with_Mosaic(index) 
+            
+            if self.mixup and self.rand() < self.mixup_prob:
+                # lines           = sample(self.annotation_lines, 1)
+                image_2, box_2  = self.get_random_data(index) 
+                image, box      = self.get_random_data_with_MixUp(image, box, image_2, box_2)
+        else:
+            image, box      = self.get_random_data(index) 
 
-        return new_image, new_boxes            
+        image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
+        box[:, :-1] = xyxy2xywhn(box[:, :-1], w=self.input_shape[1], h=self.input_shape[0], clip=True, eps=1E-3) # target is [x,y,w,h]
+
+        return image, box            
 
     def rand(self, a=0, b=1):
         return np.random.rand()*(b-a) + a
@@ -252,6 +273,16 @@ class YoloDataset(Dataset):
 
         new_anno = np.array(new_anno)
         return output_img, new_anno    
+
+    def get_random_data_with_MixUp(self, image_1, box_1, image_2, box_2):
+        new_image = np.array(image_1, np.float32) * 0.5 + np.array(image_2, np.float32) * 0.5
+        if len(box_1) == 0:
+            new_boxes = box_2
+        elif len(box_2) == 0:
+            new_boxes = box_1
+        else:
+            new_boxes = np.concatenate([box_1, box_2], axis=0)
+        return new_image, new_boxes
 
 # DataLoader中collate_fn使用
 def yolo_dataset_collate(batch):
