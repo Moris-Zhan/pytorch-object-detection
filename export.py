@@ -60,13 +60,15 @@ class Post:
             from det_model.yolox.utils.utils_bbox import decode_outputs, non_max_suppression
             self.decode_outputs = decode_outputs
             self.non_max_suppression = non_max_suppression
+        elif opt.net == "yolov7":
+            from det_model.yolov7.utils.utils_bbox import DecodeBox
+            self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
         elif opt.net == "yolov5":
             from det_model.yolov5.utils.utils_bbox import DecodeBox
             self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
         elif opt.net == "yolov4":
             from det_model.yolov4.utils.utils_bbox import DecodeBox
             self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
-
         elif opt.net == "yolov3":
             from det_model.yolov3.utils.utils_bbox import DecodeBox
             self.bbox_util = DecodeBox(opt.anchors, opt.num_classes, opt.input_shape, opt.anchors_mask)
@@ -99,6 +101,21 @@ class Post:
             results = self.non_max_suppression(outputs, self.opt.num_classes, self.opt.input_shape, 
                         image_shape, letterbox_image, 
                         conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
+            
+            if not type(results[0]) == np.ndarray: 
+                print("Not detected!!!")
+                return None, _, _
+
+            top_label   = np.array(results[0][:, 6], dtype = 'int32')
+            top_conf    = results[0][:, 4] * results[0][:, 5]
+            top_boxes   = results[0][:, :4]
+
+        elif opt.net == "yolov7":
+            outputs = [torch.from_numpy(o) for o in outputs]
+            outputs = self.bbox_util.decode_box(outputs)
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), opt.num_classes, self.opt.input_shape, 
+                                image_shape, False, 
+                                conf_thres = self.opt.conf_thres, nms_thres = self.opt.iou_thres)
             
             if not type(results[0]) == np.ndarray: 
                 print("Not detected!!!")
@@ -219,7 +236,8 @@ class Post:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # error
-    parser.add_argument('--config', type=str, default="configs.yolov5_base" ,help = 'Path to config .opt file. ')
+    # parser.add_argument('--config', type=str, default="configs.yolov5_base" ,help = 'Path to config .opt file. ')
+    parser.add_argument('--config', type=str, default="configs.yolov7_base" ,help = 'Path to config .opt file. ')
     # parser.add_argument('--config', type=str, default="configs.fasterRcnn_base" ,help = 'Path to config .opt file. ')
     
     

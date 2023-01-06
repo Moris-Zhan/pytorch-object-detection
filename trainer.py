@@ -217,7 +217,9 @@ class Trainer:
             else:
                 self.fit_one_epoch(self.model_train, self.model, self.criterion, self.loss_history, self.optimizer, epoch, self.epoch_step, self.epoch_step_val, 
                             self.train_loader, self.test_loader, self.opt)
-                
+            
+            if self.opt.distributed:
+                dist.barrier()
 
         print("End of UnFreeze Training")
                         
