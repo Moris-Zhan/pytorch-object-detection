@@ -183,4 +183,5 @@ python predict.py
 - RetinaNet: https://github.com/bubbliiiing/retinanet-pytorch
 - CenterNet: https://github.com/bubbliiiing/centernet-pytorch
 - FasterRCNN: https://github.com/bubbliiiing/faster-rcnn-pytorch
+- Onnx convert reference: https://github.com/WongKinYiu/yolov7/blob/main/export.py
 
