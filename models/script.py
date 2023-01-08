@@ -650,7 +650,7 @@ def fit_yolov4(model_train, model, yolo_loss, loss_history, optimizer, epoch, ep
     if local_rank == 0:
         print('Start Train')
         pbar = tqdm(total=epoch_step,desc=f'Epoch {epoch + 1}/{Epoch}',postfix=dict,mininterval=0.3)
-    # with tqdm(total=epoch_step,desc=f'Epoch {epoch + 1}/{Epoch}',postfix=dict,mininterval=0.3) as pbar:
+
     for iteration, batch in enumerate(gen):
         if iteration >= epoch_step:
             break
@@ -1049,7 +1049,7 @@ def fit_yolox(model_train, model, yolo_loss, loss_history, optimizer, epoch, epo
     if local_rank == 0:
         print('Start Train')
         pbar = tqdm(total=epoch_step,desc=f'Epoch {epoch + 1}/{Epoch}',postfix=dict,mininterval=0.3)
-    # with tqdm(total=epoch_step,desc=f'Epoch {epoch + 1}/{Epoch}',postfix=dict,mininterval=0.3) as pbar:
+
     for iteration, batch in enumerate(gen):
         if iteration >= epoch_step:
             break
