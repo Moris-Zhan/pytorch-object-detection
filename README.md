@@ -5,7 +5,7 @@ This frame work also include **`EarlyStopping mechanism`**.
 
 ## Datasets:
 
-I used 4 different datases: **`VOC`, `COCO`, `MosquitoContainer` and `Asian-Traffic`** . Statistics of datasets I used for experiments is shown below
+I used 5 different datases: **`VOC`, `COCO`, `MosquitoContainer`, `LANEdevkit` and `Asian-Traffic`** . Statistics of datasets I used for experiments is shown below
 
 - **VOC**:
   Download the voc images and annotations from [VOC2007](http://host.robots.ox.ac.uk/pascal/VOC/voc2007) or [VOC2012](http://host.robots.ox.ac.uk/pascal/VOC/voc2012). Make sure to put the files as the following structure:
@@ -137,7 +137,7 @@ pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable
 
 ## Usage
 ### 1. Prepare the dataset
-* **Create your own `dataset_annotation.py` then create `Detection/train.txt` , `Detection/val.txt` and `model_data/dataset_classes.txt` let data to load.** 
+* **Create your own `annotation.{dataset}.py` then create `Detection/train.txt` , `Detection/val.txt` and `model_data/dataset_classes.txt` let data to load.** 
 * **Prepare pretrain download weight to `model_data/weight` .** 
 * **Add new data in `helps/choose_data.py`. **
 
