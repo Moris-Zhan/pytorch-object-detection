@@ -173,6 +173,12 @@ python get_map.py
 python predict.py
 ```
 
+### 6. export
+* Can switch your saved model export to ONNX format
+```python
+python export.py --config "configs.yolact_base"
+```
+
 ## Reference
 - PyTorch-YOLOv3 : https://github.com/bubbliiiing/yolo3-pytorch
 - PyTorch_YOLOv4 : https://github.com/bubbliiiing/yolov4-pytorch
