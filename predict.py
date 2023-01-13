@@ -7,60 +7,50 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
-from utils.choose_data import DataType, get_data
-
-# from det_model.yolox.yolo import YOLO as Model
-# from det_model.yolov5.yolo import YOLO as Model
-# from det_model.yolov4.yolo import YOLO as Model
-# from det_model.yolov3.yolo import YOLO as Model
-# from det_model.ssd.ssd import SSD as Model
-# from det_model.faster_rcnn.frcnn import FRCNN as Model
-from det_model.retinanet.retinanet import Retinanet as Model
-# from det_model.centernet.centernet import CenterNet as Model
+import importlib
+import argparse
 
 if __name__ == "__main__":
-    # root_path = "D://WorkSpace//JupyterWorkSpace//DataSet"
-    root_path = "/home/leyan/DataSet"
-    root_path, classes_path = get_data(root_path, DataType.LANE)
+    parser = argparse.ArgumentParser(description='Attribute Learner')
+    parser.add_argument('--config', type=str, default="configs.yolox_base" 
+                        ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
+    parser.add_argument("--mode", type=str, default="video" , help="predict or video")  
+    parser.add_argument("--video_fps", type=float, default=25.0, help="video_fps")  
+    parser.add_argument("--test_interval", type=int, default=100, help="test_interval") 
 
-    model = Model(classes_path=classes_path)
+    parser.add_argument("--video_path", type=str, 
+                                        default="/home/leyan/DataSet/LANEdevkit/Drive-View-Noon-Driving-Taipei-Taiwan.mp4", 
+                                        )  
+    parser.add_argument("--video_save_path", type=str, 
+                                        default="pred_out/coco.mp4", 
+                                        ) 
+    parser.add_argument("--dir_origin_path", type=str, 
+                                        default="img/", 
+                                        )  
+    parser.add_argument("--dir_save_path", type=str, 
+                                        default="img_out/", 
+                                        )  
+
+    conf = parser.parse_args() 
+    opt = importlib.import_module(conf.config).get_opts(Train=False)
+    for key, value in vars(conf).items():     
+        setattr(opt, key, value)
+    
+    d=vars(opt)
+
+    model = opt.Model_Pred(classes_path=opt.classes_path)   
+    mode = opt.mode
+
     #----------------------------------------------------------------------------------------------------------#
-    #   mode用於指定測試的模式：
-    #   'predict'表示單張圖片預測，如果想對預測過程進行修改，如保存圖片，截取對象等，可以先看下方詳細的注釋
-    #   'video'表示視頻檢測，可調用攝像頭或者視頻進行檢測，詳情查看下方注釋。
-    #   'fps'表示測試fps，使用的圖片是img里面的street.jpg，詳情查看下方注釋。
-    #   'dir_predict'表示遍歷文件夾進行檢測並保存。默認遍歷img文件夾，保存img_out文件夾，詳情查看下方注釋。
+    video_path      = opt.video_path
+    video_save_path = opt.video_save_path
+    video_fps       = opt.video_fps
+    test_interval = opt.test_interval
     #----------------------------------------------------------------------------------------------------------#
-    # mode = "predict"
-    mode = "video"
-    #----------------------------------------------------------------------------------------------------------#
-    #   video_path用於指定視頻的路徑，當video_path=0時表示檢測攝像頭
-    #   想要檢測視頻，則設置如video_path = "xxx.mp4"即可，代表讀取出根目錄下的xxx.mp4文件。
-    #   video_save_path表示視頻保存的路徑，當video_save_path=""時表示不保存
-    #   想要保存視頻，則設置如video_save_path = "yyy.mp4"即可，代表保存為根目錄下的yyy.mp4文件。
-    #   video_fps用於保存的視頻的fps
-    #   video_path、video_save_path和video_fps僅在mode='video'時有效
-    #   保存視頻時需要ctrl+c退出或者運行到最後一幀才會完成完整的保存步驟。
-    #----------------------------------------------------------------------------------------------------------#
-    # video_save_path = ""
-    video_path      = os.path.join(root_path, "Drive-View-Kaohsiung-Taiwan.mp4")
-    # video_path      = os.path.join(root_path, "Drive-View-Noon-Driving-Taipei-Taiwan.mp4")
-    video_save_dir =os.path.join("pred_out", Model.__module__)
-    video_save_path = os.path.join(video_save_dir, os.path.basename(video_path))
-    if not os.path.exists(video_save_dir): os.makedirs(video_save_dir)
-    video_fps       = 25.0
+    dir_origin_path = opt.dir_origin_path
+    dir_save_path   = opt.dir_save_path
+    fps_image_path  = "img/fps.jpg"
     #-------------------------------------------------------------------------#
-    #   test_interval用於指定測量fps的時候，圖片檢測的次數
-    #   理論上test_interval越大，fps越準確。
-    #-------------------------------------------------------------------------#
-    test_interval   = 100
-    #-------------------------------------------------------------------------#
-    #   dir_origin_path指定了用於檢測的圖片的文件夾路徑
-    #   dir_save_path指定了檢測完圖片的保存路徑
-    #   dir_origin_path和dir_save_path僅在mode='dir_predict'時有效
-    #-------------------------------------------------------------------------#
-    dir_origin_path = "img/"
-    dir_save_path   = "img_out/"
 
     if mode == "predict":
         '''

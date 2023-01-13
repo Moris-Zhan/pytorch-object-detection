@@ -14,8 +14,8 @@ def get_opts(Train=True):
     opt = argparse.Namespace()  
 
     #the train data, you need change.
-    # opt.data_root = '/home/leyan/DataSet/'
-    opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
+    opt.data_root = '/home/leyan/DataSet/'
+    # opt.data_root = 'D://WorkSpace//JupyterWorkSpace//DataSet//'
   
     opt.out_root = 'work_dirs/'
     opt.exp_name = 'lane'
@@ -181,7 +181,9 @@ def get_opts(Train=True):
     if Train:
         opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
         init_logging(0, opt.out_path)    
- 
+    else:
+        from det_model.yolox.yolo import YOLO
+        opt.Model_Pred = YOLO
     return opt
 
 if __name__ == "__main__":    

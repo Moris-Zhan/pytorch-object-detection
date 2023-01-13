@@ -4,81 +4,59 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from tqdm import tqdm
 
-# from det_model.yolox.yolo import YOLO as Model
-# from det_model.yolov5.yolo import YOLO as Model
-# from det_model.yolov4.yolo import YOLO as Model
-# from det_model.yolov3.yolo import YOLO as Model
-# from det_model.ssd.ssd import SSD as Model
-# from det_model.retinanet.retinanet import Retinanet as Model
-# from det_model.faster_rcnn.frcnn import FRCNN as Model
-from det_model.centernet.centernet import CenterNet as Model
+# # from det_model.yolox.yolo import YOLO as Model
+# # from det_model.yolov5.yolo import YOLO as Model
+# # from det_model.yolov4.yolo import YOLO as Model
+# # from det_model.yolov3.yolo import YOLO as Model
+# # from det_model.ssd.ssd import SSD as Model
+# # from det_model.retinanet.retinanet import Retinanet as Model
+# # from det_model.faster_rcnn.frcnn import FRCNN as Model
+# from det_model.centernet.centernet import CenterNet as Model
 
-from utils.choose_model import ModelType, check_model
-from utils.choose_data import DataType, get_data
+# from utils.choose_model import ModelType, check_model
+# from utils.choose_data import DataType, get_data
+
+
+import argparse, os
+import importlib
 
 from glob import glob
 
 if __name__ == "__main__":
-    root_path = "D://WorkSpace//JupyterWorkSpace//DataSet"
-    #------------------------------#
-    VOCdevkit_path, classes_path = get_data(root_path, DataType.LANE)
-    modelType = check_model(Model.__module__)
-    #-------------------------------#
-    if modelType == ModelType.YOLOX: 
-        from det_model.yolox.utils.utils import get_classes
-        from det_model.yolox.utils.utils_map import get_coco_map, get_map
-    elif modelType == ModelType.YOLOV5: 
-        from det_model.yolov5.utils.utils import get_classes
-        from det_model.yolov5.utils.utils_map import get_coco_map, get_map
+    parser = argparse.ArgumentParser(description='Attribute Learner')
+    parser.add_argument('--config', type=str, default="configs.yolox_base" 
+                        ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
 
-    elif modelType == ModelType.YOLOV4: 
-        from det_model.yolov4.utils.utils import get_classes
-        from det_model.yolov4.utils.utils_map import get_coco_map, get_map
+    # parser.add_argument('--gt_dir', type=str, default="test/mask_annotations/")
+    # parser.add_argument('--classes_path', type=str, default='model_data/coco_classes.txt')
+    parser.add_argument("--map_mode", type=int, default=0 , help="miou mode")
+    parser.add_argument("--MINOVERLAP", type=float, default=0.5 , help="MINOVERLAP用於指定想要獲得的mAP0.x")
+    parser.add_argument("--map_vis", type=bool, default=False , help="map_vis")
+    parser.add_argument("--confidence", type=float, default=0.001 , help="confidence")
+    parser.add_argument("--nms_iou", type=float, default=0.5 , help="nms_iou")
 
-    elif modelType == ModelType.YOLOV3: 
-        from det_model.yolov3.utils.utils import get_classes
-        from det_model.yolov3.utils.utils_map import get_coco_map, get_map
 
-    elif modelType == ModelType.SSD: 
-        from det_model.ssd.utils.utils import get_classes
-        from det_model.ssd.utils.utils_map import get_coco_map, get_map
+    conf = parser.parse_args() 
+    opt = importlib.import_module(conf.config).get_opts(Train=False)
+    for key, value in vars(conf).items():     
+        setattr(opt, key, value)
+    
+    d=vars(opt)
 
-    elif modelType == ModelType.RETINANET: 
-        from det_model.retinanet.utils.utils import get_classes
-        from det_model.retinanet.utils.utils_map import get_coco_map, get_map
 
-    elif modelType == ModelType.FASTER_RCNN: 
-        from det_model.faster_rcnn.utils.utils import get_classes
-        from det_model.faster_rcnn.utils.utils_map import get_coco_map, get_map
-
-    elif modelType == ModelType.CENTERNET: 
-        from det_model.centernet.utils.utils import get_classes
-        from det_model.centernet.utils.utils_map import get_coco_map, get_map
-    '''
-    Recall和Precision不像AP是一個面積的概念，在門限值不同時，網絡的Recall和Precision值是不同的。
-    map計算結果中的Recall和Precision代表的是當預測時，門限置信度為0.5時，所對應的Recall和Precision值。
-
-    此處獲得的./map_out/detection-results/里面的txt的框的數量會比直接predict多一些，這是因為這里的門限低，
-    目的是為了計算不同門限條件下的Recall和Precision值，從而實現map的計算。
-    '''
-    #------------------------------------------------------------------------------------------------------------------#
-    #   map_mode用於指定該文件運行時計算的內容
-    #   map_mode為0代表整個map計算流程，包括獲得預測結果、獲得真實框、計算VOC_map。
-    #   map_mode為1代表僅僅獲得預測結果。
-    #   map_mode為2代表僅僅獲得真實框。
-    #   map_mode為3代表僅僅計算VOC_map。
-    #   map_mode為4代表利用COCO工具箱計算當前數據集的0.50:0.95map。需要獲得預測結果、獲得真實框後並安裝pycocotools才行
+    VOCdevkit_path, num_classes, name_classes = opt.data_path, opt.class_names, opt.num_classes    
+    get_map = importlib.import_module("det_model.%s.utils.utils_map"%opt.net).get_map
     #-------------------------------------------------------------------------------------------------------------------#
-    map_mode        = 0
+    map_mode        = opt.map_mode
     #-------------------------------------------------------#    
     #   MINOVERLAP用於指定想要獲得的mAP0.x
     #   比如計算mAP0.75，可以設定MINOVERLAP = 0.75。
     #-------------------------------------------------------#
-    MINOVERLAP      = 0.5
+    MINOVERLAP      = opt.MINOVERLAP
     #-------------------------------------------------------#
     #   map_vis用於指定是否開啟VOC_map計算的可視化
     #-------------------------------------------------------#
-    map_vis         = False
+    map_vis         = opt.map_vis
     #-------------------------------------------------------#
     #   指向VOC數據集所在的文件夾
     #   默認指向根目錄下的VOC數據集
@@ -87,10 +65,16 @@ if __name__ == "__main__":
     #-------------------------------------------------------#
     #   結果輸出的文件夾，默認為map_out
     #-------------------------------------------------------#
-    map_out_path    = os.path.join("map_out", Model.__module__)
+    map_out_path    = os.path.join(opt.out_path, "map_out") 
 
-    image_ids = glob(os.path.join(VOCdevkit_path, "test/bbox_annotations", "*.xml"))
+    # image_ids = glob(os.path.join(VOCdevkit_path, "test/bbox_annotations", "*.xml"))
+    # image_ids = [os.path.basename(abs_path).split(".")[0] for abs_path in image_ids]
+
+    image_ids       = opt.val_lines
     image_ids = [os.path.basename(abs_path).split(".")[0] for abs_path in image_ids]
+    # gt_dir          = os.path.join(VOCdevkit_path, opt.gt_dir)
+    # miou_out_path   = os.path.join(opt.out_path, "miou_out")
+    # pred_dir        = os.path.join(miou_out_path, 'detection-results')
 
     if not os.path.exists(map_out_path):
         os.makedirs(map_out_path)
@@ -101,11 +85,14 @@ if __name__ == "__main__":
     if not os.path.exists(os.path.join(map_out_path, 'images-optional')):
         os.makedirs(os.path.join(map_out_path, 'images-optional'))
 
-    class_names, _ = get_classes(classes_path)
+    # class_names, _ = get_classes(classes_path)
+
+    class_names = opt.class_names
 
     if map_mode == 0 or map_mode == 1:
         print("Load model.")
-        model = Model(confidence = 0.001, nms_iou = 0.5, classes_path = classes_path)
+        # model = Model(confidence = 0.001, nms_iou = 0.5, classes_path = classes_path)
+        model = opt.Model_Pred(confidence = opt.confidence, nms_iou = opt.nms_iou, classes_path = opt.classes_path)
         print("Load model done.")
 
         print("Get predict result.")

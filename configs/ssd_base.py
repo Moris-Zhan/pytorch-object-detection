@@ -182,7 +182,9 @@ def get_opts(Train=True):
     if Train:
         opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
         init_logging(0, opt.out_path)    
- 
+    else:
+        from det_model.ssd.ssd import SSD
+        opt.Model_Pred = SSD  
     return opt
 
 if __name__ == "__main__":    

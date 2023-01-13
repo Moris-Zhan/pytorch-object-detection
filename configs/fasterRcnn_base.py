@@ -183,7 +183,9 @@ def get_opts(Train=True):
     if Train:
         opt.writer = SummaryWriter(log_dir=os.path.join(opt.out_path, "tensorboard"))
         init_logging(opt.local_rank, opt.out_path)    
- 
+    else:
+        from det_model.faster_rcnn.frcnn import FasterRCNN
+        opt.Model_Pred = FasterRCNN   
     return opt
 
 if __name__ == "__main__":    
