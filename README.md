@@ -178,6 +178,8 @@ python predict.py
 ```python
 python export.py --config "configs.yolact_base"
 ```
+## Demo
+![40c](https://user-images.githubusercontent.com/24097516/213660395-343337a6-dfeb-4199-971e-a7ca0c22b5d6.jpg)
 
 ## Reference
 - PyTorch-YOLOv3 : https://github.com/bubbliiiing/yolo3-pytorch
