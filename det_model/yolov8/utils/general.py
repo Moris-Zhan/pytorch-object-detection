@@ -29,7 +29,7 @@ import torch
 import torchvision
 import yaml
 
-from det_model.yolov7.utils.metrics import box_iou, fitness
+from det_model.yolov8.utils.metrics import box_iou, fitness
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile='long')
