@@ -12,9 +12,9 @@ import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Attribute Learner')
-    parser.add_argument('--config', type=str, default="configs.yolox_base" 
+    parser.add_argument('--config', type=str, default="configs.yolov8_base" 
                         ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
-    parser.add_argument("--mode", type=str, default="video" , help="predict or video")  
+    parser.add_argument("--mode", type=str, default="dir_predict" , help="predict or video")  
     parser.add_argument("--video_fps", type=float, default=25.0, help="video_fps")  
     parser.add_argument("--test_interval", type=int, default=100, help="test_interval") 
 
@@ -25,7 +25,7 @@ if __name__ == "__main__":
                                         default="pred_out/coco.mp4", 
                                         ) 
     parser.add_argument("--dir_origin_path", type=str, 
-                                        default="img/", 
+                                        default="test_images/", 
                                         )  
     parser.add_argument("--dir_save_path", type=str, 
                                         default="img_out/", 
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     
     d=vars(opt)
 
-    model = opt.Model_Pred(classes_path=opt.classes_path)   
+    model = opt.Model_Pred(classes_path=opt.classes_path, model_path=f"work_dirs/{opt.exp_name}_{opt.net}/last_epoch_weights.pth")   
     mode = opt.mode
 
     #----------------------------------------------------------------------------------------------------------#

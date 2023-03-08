@@ -24,11 +24,9 @@ from glob import glob
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Attribute Learner')
-    parser.add_argument('--config', type=str, default="configs.yolox_base" 
+    parser.add_argument('--config', type=str, default="configs.yolov8_base" 
                         ,help = 'Path to config .opt file. Leave blank if loading from opts.py')
 
-    # parser.add_argument('--gt_dir', type=str, default="test/mask_annotations/")
-    # parser.add_argument('--classes_path', type=str, default='model_data/coco_classes.txt')
     parser.add_argument("--map_mode", type=int, default=0 , help="miou mode")
     parser.add_argument("--MINOVERLAP", type=float, default=0.5 , help="MINOVERLAP用於指定想要獲得的mAP0.x")
     parser.add_argument("--map_vis", type=bool, default=False , help="map_vis")
@@ -57,24 +55,10 @@ if __name__ == "__main__":
     #   map_vis用於指定是否開啟VOC_map計算的可視化
     #-------------------------------------------------------#
     map_vis         = opt.map_vis
-    #-------------------------------------------------------#
-    #   指向VOC數據集所在的文件夾
-    #   默認指向根目錄下的VOC數據集
-    #-------------------------------------------------------#
-    # VOCdevkit_path  = os.path.join(root_path, "DataSet/LANEdevkit")
-    #-------------------------------------------------------#
-    #   結果輸出的文件夾，默認為map_out
-    #-------------------------------------------------------#
     map_out_path    = os.path.join(opt.out_path, "map_out") 
-
-    # image_ids = glob(os.path.join(VOCdevkit_path, "test/bbox_annotations", "*.xml"))
-    # image_ids = [os.path.basename(abs_path).split(".")[0] for abs_path in image_ids]
 
     image_ids       = opt.val_lines
     image_ids = [os.path.basename(abs_path).split(".")[0] for abs_path in image_ids]
-    # gt_dir          = os.path.join(VOCdevkit_path, opt.gt_dir)
-    # miou_out_path   = os.path.join(opt.out_path, "miou_out")
-    # pred_dir        = os.path.join(miou_out_path, 'detection-results')
 
     if not os.path.exists(map_out_path):
         os.makedirs(map_out_path)
@@ -85,14 +69,12 @@ if __name__ == "__main__":
     if not os.path.exists(os.path.join(map_out_path, 'images-optional')):
         os.makedirs(os.path.join(map_out_path, 'images-optional'))
 
-    # class_names, _ = get_classes(classes_path)
-
     class_names = opt.class_names
 
     if map_mode == 0 or map_mode == 1:
         print("Load model.")
-        # model = Model(confidence = 0.001, nms_iou = 0.5, classes_path = classes_path)
-        model = opt.Model_Pred(confidence = opt.confidence, nms_iou = opt.nms_iou, classes_path = opt.classes_path)
+        model = opt.Model_Pred(confidence = opt.confidence, nms_iou = opt.nms_iou, classes_path = opt.classes_path, 
+            model_path=f"work_dirs/{opt.exp_name}_{opt.net}/last_epoch_weights.pth")
         print("Load model done.")
 
         print("Get predict result.")

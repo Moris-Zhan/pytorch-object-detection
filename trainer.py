@@ -54,7 +54,7 @@ class Trainer:
             rndm_input = torch.autograd.Variable(
                 torch.rand(1, opt.IM_SHAPE[2], opt.IM_SHAPE[0], opt.IM_SHAPE[1]), 
                 requires_grad = False).cpu()
-            opt.writer.add_graph(model, rndm_input)         
+            # opt.writer.add_graph(model, rndm_input)         
 
             write_info(opt.out_path, model, IM_SHAPE, "model.txt")  
         # ------------------------------------------------------------------------------
